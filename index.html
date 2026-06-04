@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NPS Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="header">
+      <div class="header-left">
+        <span class="logo-badge">NPS</span>
+        <div>
+          <h1>Net Promoter Score</h1>
+          <p class="subtitle" id="data-updated">Загрузка данных…</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="filters">
+      <div class="filter-group">
+        <label for="filter-month">Месяц</label>
+        <select id="filter-month">
+          <option value="all">Все месяцы</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="filter-type">Тип оценки</label>
+        <select id="filter-type">
+          <option value="all">Все</option>
+          <option value="promoter">Промоутеры (9–10)</option>
+          <option value="passive">Нейтралы (7–8)</option>
+          <option value="detractor">Критики (0–6)</option>
+        </select>
+      </div>
+      <button type="button" id="reset-filters" class="btn btn-ghost">Сбросить</button>
+    </section>
+
+    <section class="kpi-grid" id="kpi-grid">
+      <article class="kpi-card kpi-nps">
+        <span class="kpi-label">Общий NPS</span>
+        <span class="kpi-value" id="kpi-nps">—</span>
+        <span class="kpi-hint">−100 … +100</span>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label">Ответов</span>
+        <span class="kpi-value" id="kpi-total">—</span>
+      </article>
+      <article class="kpi-card kpi-promoter">
+        <span class="kpi-label">Промоутеры</span>
+        <span class="kpi-value" id="kpi-promoters">—</span>
+        <span class="kpi-pct" id="kpi-promoters-pct"></span>
+      </article>
+      <article class="kpi-card kpi-passive">
+        <span class="kpi-label">Нейтралы</span>
+        <span class="kpi-value" id="kpi-passives">—</span>
+        <span class="kpi-pct" id="kpi-passives-pct"></span>
+      </article>
+      <article class="kpi-card kpi-detractor">
+        <span class="kpi-label">Критики</span>
+        <span class="kpi-value" id="kpi-detractors">—</span>
+        <span class="kpi-pct" id="kpi-detractors-pct"></span>
+      </article>
+    </section>
+
+    <section class="charts-grid">
+      <article class="panel">
+        <h2>NPS по месяцам</h2>
+        <div class="chart-wrap">
+          <canvas id="chart-nps-monthly"></canvas>
+        </div>
+      </article>
+      <article class="panel">
+        <h2>Распределение оценок (0–10)</h2>
+        <div class="chart-wrap">
+          <canvas id="chart-distribution"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel reviews-panel">
+      <div class="panel-header">
+        <h2>Отзывы</h2>
+        <span class="reviews-count" id="reviews-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="reviews-table">
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Оценка</th>
+              <th>Тип</th>
+              <th>Комментарий</th>
+            </tr>
+          </thead>
+          <tbody id="reviews-tbody"></tbody>
+        </table>
+      </div>
+      <p id="reviews-empty" class="empty-state hidden">Нет отзывов по выбранным фильтрам</p>
+    </section>
+
+    <footer class="docs-footer">
+      <details class="doc-block" open>
+        <summary>Как открыть локально</summary>
+        <div class="doc-content" id="doc-local"></div>
+      </details>
+      <details class="doc-block">
+        <summary>Как обновить data.json</summary>
+        <div class="doc-content" id="doc-update"></div>
+      </details>
+      <details class="doc-block">
+        <summary>Деплой на Vercel</summary>
+        <div class="doc-content" id="doc-deploy"></div>
+      </details>
+    </footer>
+  </div>
+
+  <div id="load-error" class="load-error hidden">
+    <p>Не удалось загрузить <code>data.json</code>.</p>
+    <p>Не открывайте <code>index.html</code> двойным щелчком — нужен локальный сервер. См. блок «Как открыть локально» внизу или запустите <code>start.bat</code>.</p>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
