@@ -39,9 +39,18 @@ function responseMonth(r) {
   return r.surveyMonth || (r.date ? r.date.slice(0, 7) : null);
 }
 
+function isValidMonthKey(key) {
+  if (!key) return false;
+  if (/^\d{4}-\d{2}$/.test(key)) return Number(key.slice(0, 4)) >= 2020;
+  const label = monthCatalog.get(key) || key;
+  return !/1899|1900/.test(String(label));
+}
+
 function monthLabel(key) {
   if (!key) return "—";
-  return monthCatalog.get(key) || formatMonthKeyLabel(key);
+  const label = monthCatalog.get(key) || formatMonthKeyLabel(key);
+  if (/1899|1900/.test(label)) return formatMonthKeyLabel(key).includes("1899") ? "—" : label;
+  return label;
 }
 
 function callMonth(c) {
@@ -135,11 +144,11 @@ function populateMonthFilter(responses, calls) {
   const monthSet = new Set();
   responses.forEach((r) => {
     const m = responseMonth(r);
-    if (m) monthSet.add(m);
+    if (m && isValidMonthKey(m)) monthSet.add(m);
   });
   (calls || []).forEach((c) => {
     const m = callMonth(c);
-    if (m) monthSet.add(m);
+    if (m && isValidMonthKey(m)) monthSet.add(m);
   });
   const months = sortMonthKeys(monthSet).reverse();
 
@@ -179,7 +188,7 @@ function updateKpis(responses) {
 
 function buildMonthlyNps(allResponses, monthFilter) {
   const months = sortMonthKeys(
-    [...new Set(allResponses.map((r) => responseMonth(r)).filter(Boolean))],
+    [...new Set(allResponses.map((r) => responseMonth(r)).filter((m) => m && isValidMonthKey(m)))],
   );
   const filteredMonths =
     monthFilter !== "all" ? months.filter((m) => m === monthFilter) : months;
@@ -243,10 +252,8 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
       datasets: [
         {
           label: "NPS",
-          data: monthly.values,
-          backgroundColor: monthly.values.map((v) =>
-            v >= 0 ? "rgba(59, 130, 246, 0.8)" : "rgba(244, 63, 94, 0.75)",
-          ),
+          data: monthly.values.map((v) => Math.max(0, v)),
+          backgroundColor: "rgba(59, 130, 246, 0.8)",
           borderRadius: 6,
         },
       ],
@@ -258,13 +265,17 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (ctx) => `NPS: ${ctx.parsed.y > 0 ? "+" : ""}${ctx.parsed.y}`,
+            label: (ctx) => {
+              const real = monthly.values[ctx.dataIndex];
+              if (real === undefined) return "";
+              return `NPS: ${real > 0 ? "+" : ""}${real}`;
+            },
           },
         },
       },
       scales: {
         y: {
-          min: -100,
+          min: 0,
           max: 100,
           grid: { color: gridColor },
           ticks: { color: textColor },

@@ -102,40 +102,67 @@ function buildMonthLabel(monthNum, year, raw) {
   return `${full} ${year}`;
 }
 
+function isValidSurveyYear(year) {
+  return year >= 2020 && year <= 2035;
+}
+
 function monthResult(monthNum, year, raw) {
+  if (!isValidSurveyYear(year) || monthNum < 1 || monthNum > 12) return null;
   return {
     key: toMonthKey(year, monthNum),
     label: buildMonthLabel(monthNum, year, raw),
   };
 }
 
+function rawMonthFallback(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  const key = text.toLowerCase().replace(/\u00a0/g, " ");
+  return { key, label: text };
+}
+
 function parseSurveyMonth(v) {
   if (v === null || v === undefined || v === "") return null;
 
   if (v instanceof Date && !Number.isNaN(v.getTime())) {
-    return monthResult(v.getMonth() + 1, v.getFullYear(), v);
+    const r = monthResult(v.getMonth() + 1, v.getFullYear(), v);
+    return r || rawMonthFallback(v);
   }
 
   if (typeof v === "number" && Number.isFinite(v)) {
     const rounded = Math.round(v);
     const s = String(rounded);
-    if (s.length === 6 && rounded >= 190001 && rounded <= 210012) {
+    if (s.length === 6 && rounded >= 202001 && rounded <= 203512) {
       const y = Number(s.slice(0, 4));
       const mo = Number(s.slice(4));
-      return monthResult(mo, y, s);
+      const r = monthResult(mo, y, s);
+      if (r) return r;
     }
-    const fromSerial = excelSerialToDate(v);
-    if (fromSerial) return monthResult(fromSerial.getMonth() + 1, fromSerial.getFullYear(), v);
+    // Excel serial только для дат 2020+ (серийный номер ~43831)
+    if (rounded >= 43831) {
+      const fromSerial = excelSerialToDate(v);
+      if (fromSerial) {
+        const r = monthResult(fromSerial.getMonth() + 1, fromSerial.getFullYear(), v);
+        if (r) return r;
+      }
+    }
+    return null;
   }
 
   const raw = String(v).trim();
   const s = raw.toLowerCase().replace(/\u00a0/g, " ");
 
   let m = s.match(/^(\d{4})[.\-\/](\d{1,2})$/);
-  if (m) return monthResult(Number(m[2]), Number(m[1]), raw);
+  if (m) {
+    const r = monthResult(Number(m[2]), Number(m[1]), raw);
+    if (r) return r;
+  }
 
   m = s.match(/^(\d{1,2})[.\-\/](\d{4})$/);
-  if (m) return monthResult(Number(m[1]), Number(m[2]), raw);
+  if (m) {
+    const r = monthResult(Number(m[1]), Number(m[2]), raw);
+    if (r) return r;
+  }
 
   m = s.match(/^([а-яё]{3,12})[\s.]+(\d{2,4})$/);
   if (m) {
@@ -143,7 +170,8 @@ function parseSurveyMonth(v) {
     const year = expandYear(m[2]);
     for (const [name, mo] of RU_MONTH_STEMS) {
       if (stem === name || stem.startsWith(name) || name.startsWith(stem)) {
-        return monthResult(mo, year, raw);
+        const r = monthResult(mo, year, raw);
+        if (r) return r;
       }
     }
   }
@@ -151,15 +179,34 @@ function parseSurveyMonth(v) {
   for (const [stem, mo] of RU_MONTH_STEMS) {
     if (!s.includes(stem)) continue;
     const y4 = s.match(/20\d{2}/);
-    if (y4) return monthResult(mo, Number(y4[0]), raw);
+    if (y4) {
+      const r = monthResult(mo, Number(y4[0]), raw);
+      if (r) return r;
+    }
     const y2 = s.match(/(?:[\s.])(\d{2})\s*$/);
-    if (y2) return monthResult(mo, expandYear(y2[1]), raw);
+    if (y2) {
+      const r = monthResult(mo, expandYear(y2[1]), raw);
+      if (r) return r;
+    }
   }
 
   const asDate = parseDate(raw);
-  if (asDate) return monthResult(asDate.getMonth() + 1, asDate.getFullYear(), raw);
+  if (asDate) {
+    const r = monthResult(asDate.getMonth() + 1, asDate.getFullYear(), raw);
+    if (r) return r;
+  }
 
-  return { key: s, label: raw };
+  return rawMonthFallback(raw);
+}
+
+function getSurveyMonthCellValue(ws, rowIndex, colIndex, rawFallback) {
+  if (ws && colIndex >= 0) {
+    const addr = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+    const cell = ws[addr];
+    if (cell?.w) return cell.w;
+    if (cell?.v != null && typeof cell.v === "string") return cell.v;
+  }
+  return rawFallback;
 }
 
 function isSuccessfulCall(status) {
@@ -189,7 +236,7 @@ function getAgeCohortLabel(key) {
   return c ? c.label : key;
 }
 
-function parseNpsRows(rowsArr, sourceLabel) {
+function parseNpsRows(rowsArr, sourceLabel, ws) {
   if (!rowsArr.length) throw new Error("Файл пустой");
 
   const sheetName = sourceLabel || "лист 1";
@@ -254,7 +301,8 @@ function parseNpsRows(rowsArr, sourceLabel) {
     const score = parseScore(line[idxScore]);
     const comment = idxComment >= 0 ? String(line[idxComment] ?? "").trim() : "";
     const regDateObj = idxRegDate >= 0 ? parseDate(line[idxRegDate]) : null;
-    const monthParsed = parseSurveyMonth(line[idxSurveyMonth]);
+    const monthRaw = getSurveyMonthCellValue(ws, r, idxSurveyMonth, line[idxSurveyMonth]);
+    const monthParsed = parseSurveyMonth(monthRaw);
 
     const empty = !callStatus && score === null && !comment && !regDateObj && !monthParsed;
     if (empty) {
@@ -324,12 +372,12 @@ function parseNpsWorkbook(wb, sourceLabel) {
   if (!ws) throw new Error("В книге нет листов");
 
   const rowsArr = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
-  return parseNpsRows(rowsArr, sourceLabel || sheetName);
+  return parseNpsRows(rowsArr, sourceLabel || sheetName, ws);
 }
 
 function formatMonthKeyLabel(key) {
   const [y, mo] = String(key).split("-");
-  if (!y || !mo || Number.isNaN(Number(mo))) return key;
+  if (!y || !mo || Number.isNaN(Number(mo)) || Number(y) < 2020) return String(key);
   const abbr = MONTH_ABBR[Number(mo) - 1];
   if (!abbr) return key;
   return `${abbr}.${y.slice(-2)}`;
