@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome Call Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="load-error" class="load-error-banner hidden">
+    <p id="load-error-text">Не удалось загрузить данные.</p>
+  </div>
+
+  <div id="app" class="app">
+    <nav class="site-nav" aria-label="Навигация по дашбордам">
+      <a href="index.html" class="site-nav-link">NPS Dashboard</a>
+      <a href="welcome-call.html" class="site-nav-link active">Welcome Call Dashboard</a>
+    </nav>
+
+    <header class="header">
+      <div class="header-left">
+        <span class="logo-badge logo-badge-wc">WC</span>
+        <div>
+          <h1>Welcome Call Dashboard</h1>
+          <p class="subtitle" id="data-updated">Загрузка данных…</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="filters">
+      <div class="filter-group">
+        <label for="filter-period">Период</label>
+        <select id="filter-period">
+          <option value="all">Все</option>
+          <option value="month">Конкретный месяц</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="filter-month">Месяц</label>
+        <select id="filter-month" disabled></select>
+      </div>
+      <button type="button" id="reset-filters" class="btn btn-ghost">Сбросить</button>
+    </section>
+
+    <!-- Block 1: Connection satisfaction -->
+    <section class="dashboard-block">
+      <h2 class="section-title block-title">1. Удовлетворенность процессом подключения</h2>
+      <section class="kpi-grid">
+        <article class="kpi-card">
+          <span class="kpi-label">Всего оценок</span>
+          <span class="kpi-value" id="conn-total">—</span>
+        </article>
+        <article class="kpi-card kpi-promoter">
+          <span class="kpi-label">«Да»</span>
+          <span class="kpi-value" id="conn-yes">—</span>
+          <span class="kpi-pct" id="conn-yes-pct"></span>
+        </article>
+        <article class="kpi-card kpi-detractor">
+          <span class="kpi-label">Остальные ответы</span>
+          <span class="kpi-value" id="conn-other">—</span>
+          <span class="kpi-pct" id="conn-other-pct"></span>
+        </article>
+      </section>
+
+      <div class="charts-grid">
+        <article class="panel">
+          <h2>Распределение ответов</h2>
+          <div class="chart-wrap">
+            <canvas id="chart-conn-dist"></canvas>
+          </div>
+        </article>
+        <article class="panel" id="conn-monthly-panel">
+          <h2>% «Да» по месяцам</h2>
+          <div class="chart-wrap">
+            <canvas id="chart-conn-monthly"></canvas>
+          </div>
+        </article>
+      </div>
+
+      <section class="panel summary-section">
+        <h2 class="section-title">Комментарии к подключению — саммари</h2>
+        <div class="summary-grid">
+          <article class="summary-card summary-positive">
+            <div class="summary-card-header">
+              <h3>Топ-5 позитивных</h3>
+              <span class="summary-card-hint">ответ «Да»</span>
+            </div>
+            <ul class="summary-list" id="conn-summary-positive"></ul>
+            <p class="summary-empty hidden" id="conn-summary-positive-empty">Нет позитивных комментариев</p>
+          </article>
+          <article class="summary-card summary-negative">
+            <div class="summary-card-header">
+              <h3>Топ-5 негативных</h3>
+              <span class="summary-card-hint">ответ не «Да»</span>
+            </div>
+            <ul class="summary-list" id="conn-summary-negative"></ul>
+            <p class="summary-empty hidden" id="conn-summary-negative-empty">Нет негативных комментариев</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel reviews-panel">
+        <div class="panel-header">
+          <h2>Комментарии к подключению</h2>
+          <span class="reviews-count" id="conn-comments-count"></span>
+        </div>
+        <div class="filter-group search-group">
+          <label for="conn-search">Поиск по комментарию</label>
+          <input type="search" id="conn-search" class="search-input" placeholder="Введите текст…" />
+        </div>
+        <div class="table-wrap">
+          <table class="reviews-table">
+            <thead>
+              <tr>
+                <th>Месяц</th>
+                <th>Оценка</th>
+                <th>Комментарий</th>
+              </tr>
+            </thead>
+            <tbody id="conn-comments-tbody"></tbody>
+          </table>
+        </div>
+        <p id="conn-comments-empty" class="empty-state hidden">Нет комментариев</p>
+        <nav class="reviews-pagination hidden" id="conn-pagination" aria-label="Страницы комментариев к подключению">
+          <button type="button" class="btn btn-ghost" id="conn-prev" disabled>← Назад</button>
+          <span class="reviews-page-info" id="conn-page-info"></span>
+          <button type="button" class="btn btn-ghost" id="conn-next" disabled>Вперёд →</button>
+        </nav>
+      </section>
+    </section>
+
+    <!-- Block 2: Manager rating -->
+    <section class="dashboard-block">
+      <h2 class="section-title block-title">2. Оценка работы менеджера</h2>
+      <section class="kpi-grid">
+        <article class="kpi-card">
+          <span class="kpi-label">Всего оценок</span>
+          <span class="kpi-value" id="mgr-total">—</span>
+        </article>
+        <article class="kpi-card kpi-nps">
+          <span class="kpi-label">Средняя оценка</span>
+          <span class="kpi-value" id="mgr-avg">—</span>
+        </article>
+      </section>
+      <section class="kpi-grid" id="mgr-kpi-breakdown"></section>
+
+      <div class="charts-grid">
+        <article class="panel">
+          <h2>Распределение оценок</h2>
+          <div class="chart-wrap">
+            <canvas id="chart-mgr-dist"></canvas>
+          </div>
+        </article>
+        <article class="panel" id="mgr-monthly-panel">
+          <h2>Средняя оценка по месяцам</h2>
+          <div class="chart-wrap">
+            <canvas id="chart-mgr-monthly"></canvas>
+          </div>
+        </article>
+      </div>
+
+      <section class="panel summary-section">
+        <h2 class="section-title">Комментарии к работе менеджера — саммари</h2>
+        <div class="summary-grid">
+          <article class="summary-card summary-positive">
+            <div class="summary-card-header">
+              <h3>Топ-5 позитивных</h3>
+              <span class="summary-card-hint">высокая оценка</span>
+            </div>
+            <ul class="summary-list" id="mgr-summary-positive"></ul>
+            <p class="summary-empty hidden" id="mgr-summary-positive-empty">Нет позитивных комментариев</p>
+          </article>
+          <article class="summary-card summary-negative">
+            <div class="summary-card-header">
+              <h3>Топ-5 негативных</h3>
+              <span class="summary-card-hint">низкая оценка</span>
+            </div>
+            <ul class="summary-list" id="mgr-summary-negative"></ul>
+            <p class="summary-empty hidden" id="mgr-summary-negative-empty">Нет негативных комментариев</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel reviews-panel">
+        <div class="panel-header">
+          <h2>Комментарии к работе менеджера</h2>
+          <span class="reviews-count" id="mgr-comments-count"></span>
+        </div>
+        <div class="filter-group search-group">
+          <label for="mgr-search">Поиск по комментарию</label>
+          <input type="search" id="mgr-search" class="search-input" placeholder="Введите текст…" />
+        </div>
+        <div class="table-wrap">
+          <table class="reviews-table">
+            <thead>
+              <tr>
+                <th>Месяц</th>
+                <th>Оценка</th>
+                <th>Комментарий</th>
+              </tr>
+            </thead>
+            <tbody id="mgr-comments-tbody"></tbody>
+          </table>
+        </div>
+        <p id="mgr-comments-empty" class="empty-state hidden">Нет комментариев</p>
+        <nav class="reviews-pagination hidden" id="mgr-pagination" aria-label="Страницы комментариев к менеджеру">
+          <button type="button" class="btn btn-ghost" id="mgr-prev" disabled>← Назад</button>
+          <span class="reviews-page-info" id="mgr-page-info"></span>
+          <button type="button" class="btn btn-ghost" id="mgr-next" disabled>Вперёд →</button>
+        </nav>
+      </section>
+    </section>
+
+    <!-- Block 3: NPS after connection -->
+    <section class="dashboard-block">
+      <h2 class="section-title block-title">3. NPS после подключения</h2>
+      <section class="kpi-grid">
+        <article class="kpi-card kpi-nps">
+          <span class="kpi-label">Итоговый NPS</span>
+          <span class="kpi-value" id="wc-kpi-nps">—</span>
+          <span class="kpi-hint">−100 … +100</span>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Всего NPS-оценок</span>
+          <span class="kpi-value" id="wc-nps-total">—</span>
+        </article>
+        <article class="kpi-card kpi-promoter">
+          <span class="kpi-label">Промоутеры</span>
+          <span class="kpi-value" id="wc-nps-promoters">—</span>
+          <span class="kpi-pct" id="wc-nps-promoters-pct"></span>
+        </article>
+        <article class="kpi-card kpi-passive">
+          <span class="kpi-label">Нейтралы</span>
+          <span class="kpi-value" id="wc-nps-passives">—</span>
+          <span class="kpi-pct" id="wc-nps-passives-pct"></span>
+        </article>
+        <article class="kpi-card kpi-detractor">
+          <span class="kpi-label">Критики</span>
+          <span class="kpi-value" id="wc-nps-detractors">—</span>
+          <span class="kpi-pct" id="wc-nps-detractors-pct"></span>
+        </article>
+      </section>
+
+      <div class="charts-grid">
+        <article class="panel">
+          <h2>Распределение оценок (0–10)</h2>
+          <div class="chart-wrap">
+            <canvas id="chart-wc-nps-dist"></canvas>
+          </div>
+        </article>
+        <article class="panel" id="wc-nps-monthly-panel">
+          <h2>NPS по месяцам</h2>
+          <div class="chart-wrap">
+            <canvas id="chart-wc-nps-monthly"></canvas>
+          </div>
+        </article>
+      </div>
+
+      <section class="panel summary-section">
+        <h2 class="section-title">Комментарии к NPS — саммари</h2>
+        <div class="summary-grid">
+          <article class="summary-card summary-positive">
+            <div class="summary-card-header">
+              <h3>Топ-5 позитивных</h3>
+              <span class="summary-card-hint">промоутеры</span>
+            </div>
+            <ul class="summary-list" id="wc-nps-summary-positive"></ul>
+            <p class="summary-empty hidden" id="wc-nps-summary-positive-empty">Нет позитивных комментариев</p>
+          </article>
+          <article class="summary-card summary-negative">
+            <div class="summary-card-header">
+              <h3>Топ-5 негативных</h3>
+              <span class="summary-card-hint">критики</span>
+            </div>
+            <ul class="summary-list" id="wc-nps-summary-negative"></ul>
+            <p class="summary-empty hidden" id="wc-nps-summary-negative-empty">Нет негативных комментариев</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel reviews-panel">
+        <div class="panel-header">
+          <h2>Комментарии к NPS</h2>
+          <span class="reviews-count" id="wc-nps-comments-count"></span>
+        </div>
+        <div class="filter-group search-group">
+          <label for="wc-nps-search">Поиск по комментарию</label>
+          <input type="search" id="wc-nps-search" class="search-input" placeholder="Введите текст…" />
+        </div>
+        <div class="table-wrap">
+          <table class="reviews-table">
+            <thead>
+              <tr>
+                <th>Месяц</th>
+                <th>Оценка NPS</th>
+                <th>Тип клиента</th>
+                <th>Комментарий</th>
+              </tr>
+            </thead>
+            <tbody id="wc-nps-comments-tbody"></tbody>
+          </table>
+        </div>
+        <p id="wc-nps-comments-empty" class="empty-state hidden">Нет комментариев</p>
+        <nav class="reviews-pagination hidden" id="wc-nps-pagination" aria-label="Страницы комментариев к NPS">
+          <button type="button" class="btn btn-ghost" id="wc-nps-prev" disabled>← Назад</button>
+          <span class="reviews-page-info" id="wc-nps-page-info"></span>
+          <button type="button" class="btn btn-ghost" id="wc-nps-next" disabled>Вперёд →</button>
+        </nav>
+      </section>
+    </section>
+
+    <!-- Block 4: Calls -->
+    <section class="dashboard-block">
+      <h2 class="section-title block-title">4. Дозвон и получение оценки</h2>
+      <section class="kpi-grid">
+        <article class="kpi-card">
+          <span class="kpi-label">Всего звонков</span>
+          <span class="kpi-value" id="calls-total">—</span>
+        </article>
+        <article class="kpi-card kpi-connected">
+          <span class="kpi-label">Дозвонились</span>
+          <span class="kpi-value" id="calls-reached">—</span>
+          <span class="kpi-pct" id="calls-reached-pct"></span>
+        </article>
+        <article class="kpi-card kpi-scored">
+          <span class="kpi-label">Получили оценку</span>
+          <span class="kpi-value" id="calls-rated">—</span>
+          <span class="kpi-pct" id="calls-rated-pct-total"></span>
+          <span class="kpi-pct" id="calls-rated-pct-reached"></span>
+        </article>
+      </section>
+
+      <article class="panel calls-chart-panel">
+        <h2>Воронка: звонки → дозвон → оценка</h2>
+        <div class="chart-wrap chart-wrap-funnel">
+          <canvas id="chart-calls-funnel"></canvas>
+        </div>
+      </article>
+
+      <section class="panel">
+        <h2>Статистика по месяцам</h2>
+        <div class="table-wrap">
+          <table class="reviews-table">
+            <thead>
+              <tr>
+                <th>Месяц</th>
+                <th>Всего звонков</th>
+                <th>Дозвонились</th>
+                <th>% дозвона</th>
+                <th>Получили оценку</th>
+                <th>% оценки от дозвонов</th>
+              </tr>
+            </thead>
+            <tbody id="calls-monthly-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="welcome-call-parse.js?v=1" onerror="document.getElementById('load-error-text').textContent='Не найден welcome-call-parse.js';document.getElementById('load-error').classList.remove('hidden');"></script>
+  <script src="welcome-call-app.js?v=1"></script>
+</body>
+</html>
