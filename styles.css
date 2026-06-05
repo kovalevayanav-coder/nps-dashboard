@@ -325,6 +325,27 @@ body {
   color: var(--text-muted);
 }
 
+.reviews-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.reviews-page-info {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  min-width: 12rem;
+  text-align: center;
+}
+
+.reviews-pagination .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Table */
 .table-wrap {
   overflow-x: auto;
@@ -405,82 +426,6 @@ body {
   text-align: center;
   padding: 2rem;
   color: var(--text-muted);
-}
-
-/* Docs footer */
-.docs-footer {
-  margin-top: 2.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.doc-block {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.doc-block summary {
-  padding: 1rem 1.25rem;
-  cursor: pointer;
-  font-weight: 600;
-  list-style: none;
-}
-
-.doc-block summary::-webkit-details-marker {
-  display: none;
-}
-
-.doc-block summary::before {
-  content: "▸ ";
-  color: var(--accent);
-}
-
-.doc-block[open] summary::before {
-  content: "▾ ";
-}
-
-.doc-content {
-  padding: 0 1.25rem 1.25rem;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  line-height: 1.65;
-}
-
-.doc-content h3 {
-  color: var(--text);
-  font-size: 0.95rem;
-  margin: 1rem 0 0.5rem;
-}
-
-.doc-content h3:first-child {
-  margin-top: 0;
-}
-
-.doc-content pre {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1rem;
-  overflow-x: auto;
-  font-size: 0.8rem;
-  color: var(--text);
-}
-
-.doc-content code {
-  font-family: ui-monospace, monospace;
-  font-size: 0.85em;
-  background: var(--bg);
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
-}
-
-.doc-content ol,
-.doc-content ul {
-  margin: 0.5rem 0;
-  padding-left: 1.25rem;
 }
 
 .subtitle.status-error {

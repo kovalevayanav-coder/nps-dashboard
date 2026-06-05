@@ -1,5 +1,7 @@
 let rawData = null;
 let monthCatalog = new Map();
+let reviewsPage = 1;
+const REVIEWS_PAGE_SIZE = 20;
 let chartMonthly = null;
 let chartDistribution = null;
 let chartCallRate = null;
@@ -244,13 +246,9 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
       datasets: [
         {
           label: "NPS",
-          data: monthly.values.map((v) => (v === null ? 0 : v)),
+          data: monthly.values.map((v) => (v === null ? 0 : Math.max(0, v))),
           backgroundColor: monthly.values.map((v) =>
-            v === null
-              ? "rgba(139, 156, 179, 0.35)"
-              : v >= 0
-                ? "rgba(59, 130, 246, 0.8)"
-                : "rgba(239, 68, 68, 0.8)",
+            v === null ? "rgba(139, 156, 179, 0.35)" : "rgba(59, 130, 246, 0.8)",
           ),
           borderRadius: 6,
         },
@@ -273,7 +271,7 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
       },
       scales: {
         y: {
-          min: -100,
+          min: 0,
           max: 100,
           grid: { color: gridColor },
           ticks: {
@@ -418,12 +416,17 @@ function renderTable(responses) {
   const tbody = document.getElementById("reviews-tbody");
   const empty = document.getElementById("reviews-empty");
   const countEl = document.getElementById("reviews-count");
+  const pagination = document.getElementById("reviews-pagination");
+  const pageInfo = document.getElementById("reviews-page-info");
+  const prevBtn = document.getElementById("reviews-prev");
+  const nextBtn = document.getElementById("reviews-next");
 
   countEl.textContent = `${responses.length} записей`;
   tbody.innerHTML = "";
 
   if (!responses.length) {
     empty.classList.remove("hidden");
+    pagination?.classList.add("hidden");
     return;
   }
   empty.classList.add("hidden");
@@ -432,7 +435,14 @@ function renderTable(responses) {
     String(responseMonth(b) || "").localeCompare(String(responseMonth(a) || ""), "ru"),
   );
 
-  sorted.forEach((r) => {
+  const totalPages = Math.ceil(sorted.length / REVIEWS_PAGE_SIZE);
+  if (reviewsPage > totalPages) reviewsPage = totalPages;
+  if (reviewsPage < 1) reviewsPage = 1;
+
+  const start = (reviewsPage - 1) * REVIEWS_PAGE_SIZE;
+  const pageItems = sorted.slice(start, start + REVIEWS_PAGE_SIZE);
+
+  pageItems.forEach((r) => {
     const type = getScoreType(r.score);
     let ageLabel = "—";
     if (r.registrationDate) {
@@ -451,6 +461,17 @@ function renderTable(responses) {
     `;
     tbody.appendChild(tr);
   });
+
+  if (pagination && pageInfo && prevBtn && nextBtn) {
+    if (totalPages <= 1) {
+      pagination.classList.add("hidden");
+    } else {
+      pagination.classList.remove("hidden");
+      pageInfo.textContent = `Страница ${reviewsPage} из ${totalPages} · ${start + 1}–${Math.min(start + REVIEWS_PAGE_SIZE, sorted.length)} из ${sorted.length}`;
+      prevBtn.disabled = reviewsPage <= 1;
+      nextBtn.disabled = reviewsPage >= totalPages;
+    }
+  }
 }
 
 function escapeHtml(str) {
@@ -459,10 +480,11 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function render() {
+function render(resetReviewsPage = false) {
   if (!rawData) return;
 
   try {
+    if (resetReviewsPage) reviewsPage = 1;
     const monthFilter = document.getElementById("filter-month")?.value || "all";
     const reviewType = document.getElementById("review-filter-type")?.value || "all";
     const reviewScore = document.getElementById("review-filter-score")?.value || "all";
@@ -554,7 +576,7 @@ function applyData(data) {
     }
   }
 
-  render();
+  render(true);
 }
 
 async function loadData() {
@@ -599,9 +621,9 @@ function setupFilters() {
     const el = document.getElementById(id);
     if (el) el.addEventListener("change", fn);
   };
-  bind("filter-month", render);
-  bind("review-filter-type", render);
-  bind("review-filter-score", render);
+  bind("filter-month", () => render(true));
+  bind("review-filter-type", () => render(true));
+  bind("review-filter-score", () => render(true));
 
   const reset = document.getElementById("reset-filters");
   if (reset) {
@@ -612,40 +634,34 @@ function setupFilters() {
       if (m) m.value = "all";
       if (t) t.value = "all";
       if (s) s.value = "all";
+      render(true);
+    });
+  }
+}
+
+function setupReviewsPagination() {
+  const prevBtn = document.getElementById("reviews-prev");
+  const nextBtn = document.getElementById("reviews-next");
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => {
+      if (reviewsPage > 1) {
+        reviewsPage--;
+        render();
+      }
+    });
+  }
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      reviewsPage++;
       render();
     });
   }
 }
 
-function injectDocs() {
-  const update = document.getElementById("doc-update");
-  const deploy = document.getElementById("doc-deploy");
-  if (!update || !deploy) return;
-
-  update.innerHTML = `
-    <p>Данные — файл <code>data.xlsx</code> в корне проекта на GitHub.</p>
-    <h3>Колонки в Excel</h3>
-    <ul>
-      <li><strong>Дозвон</strong>, <strong>Оценка</strong>, <strong>Дата регистрации бизнеса</strong>, <strong>Комментарий</strong></li>
-      <li><strong>месяц оценки</strong> — для графика NPS по месяцам (дата или 4.26)</li>
-    </ul>
-    <h3>Обновление</h3>
-    <ol>
-      <li>GitHub → замените <code>data.xlsx</code> → Commit</li>
-      <li>Ctrl+F5 на дашборде</li>
-    </ol>
-  `;
-
-  deploy.innerHTML = `
-    <p>На GitHub должны быть: <code>index.html</code>, <code>app.js</code>, <code>parse-workbook.js</code>, <code>styles.css</code>, <code>data.xlsx</code>, <code>vercel.json</code></p>
-    <p>Vercel: Framework <strong>Other</strong>, Build Command пустой.</p>
-  `;
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   try {
     setupFilters();
-    injectDocs();
+    setupReviewsPagination();
     loadData();
   } catch (err) {
     console.error(err);

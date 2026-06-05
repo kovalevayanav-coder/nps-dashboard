@@ -136,6 +136,11 @@
         </table>
       </div>
       <p id="reviews-empty" class="empty-state hidden">Нет отзывов по выбранным фильтрам</p>
+      <nav class="reviews-pagination hidden" id="reviews-pagination" aria-label="Страницы отзывов">
+        <button type="button" class="btn btn-ghost" id="reviews-prev" disabled>← Назад</button>
+        <span class="reviews-page-info" id="reviews-page-info"></span>
+        <button type="button" class="btn btn-ghost" id="reviews-next" disabled>Вперёд →</button>
+      </nav>
     </section>
 
     <section class="calls-section">
@@ -164,21 +169,10 @@
         <canvas id="chart-call-rate"></canvas>
       </div>
     </section>
-
-    <footer class="docs-footer">
-      <details class="doc-block">
-        <summary>Как обновить Excel</summary>
-        <div class="doc-content" id="doc-update"></div>
-      </details>
-      <details class="doc-block">
-        <summary>Деплой на Vercel</summary>
-        <div class="doc-content" id="doc-deploy"></div>
-      </details>
-    </footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="parse-workbook.js?v=4" onerror="document.getElementById('load-error-text').textContent='Не найден parse-workbook.js — загрузите его на GitHub';document.getElementById('load-error').classList.remove('hidden');"></script>
-  <script src="app.js?v=4"></script>
+  <script src="parse-workbook.js?v=5" onerror="document.getElementById('load-error-text').textContent='Не найден parse-workbook.js — загрузите его на GitHub';document.getElementById('load-error').classList.remove('hidden');"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
