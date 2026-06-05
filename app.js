@@ -35,14 +35,9 @@ function formatDate(dateStr) {
   });
 }
 
+/** Ключ месяца оценки (YYYY-MM) — только колонка «месяц оценки», не дата активации */
 function responseMonth(r) {
-  return r.surveyMonth || (r.date ? r.date.slice(0, 7) : null);
-}
-
-function isValidMonthKey(key) {
-  if (!key) return false;
-  if (/^\d{4}-\d{2}$/.test(key)) return Number(key.slice(0, 4)) >= 2020;
-  return !/1899|1900/.test(String(monthCatalog.get(key) || key));
+  return r.surveyMonth || null;
 }
 
 function monthLabel(key) {
@@ -51,7 +46,7 @@ function monthLabel(key) {
 }
 
 function callMonth(c) {
-  return c.surveyMonth || (c.date ? c.date.slice(0, 7) : null);
+  return c.surveyMonth || null;
 }
 
 function buildMonthCatalog(responses, calls) {
@@ -141,15 +136,15 @@ function populateMonthFilter(responses, calls) {
   const monthSet = new Set();
   responses.forEach((r) => {
     const m = responseMonth(r);
-    if (m && isValidMonthKey(m)) monthSet.add(m);
+    if (m) monthSet.add(m);
   });
   (calls || []).forEach((c) => {
     const m = callMonth(c);
-    if (m && isValidMonthKey(m)) monthSet.add(m);
+    if (m) monthSet.add(m);
   });
   const months = sortMonthKeys(monthSet).reverse();
 
-  select.innerHTML = '<option value="all">Все месяцы обзвона</option>';
+  select.innerHTML = '<option value="all">Все месяцы оценки</option>';
   months.forEach((m) => {
     const opt = document.createElement("option");
     opt.value = m;
@@ -183,17 +178,17 @@ function updateKpis(responses) {
   document.getElementById("kpi-detractors-pct").textContent = pct(detractors, total);
 }
 
+/** NPS по месяцам — группировка только по «месяц оценки» (surveyMonth) */
 function buildMonthlyNps(allResponses, monthFilter) {
-  const months = sortMonthKeys(
-    [...new Set(allResponses.map((r) => responseMonth(r)).filter((m) => m && isValidMonthKey(m)))],
-  );
+  const withMonth = allResponses.filter((r) => responseMonth(r));
+  const months = sortMonthKeys([...new Set(withMonth.map((r) => responseMonth(r)))]);
   const filteredMonths =
     monthFilter !== "all" ? months.filter((m) => m === monthFilter) : months;
 
   const labels = filteredMonths.map((m) => monthLabel(m));
   const values = filteredMonths.map((m) => {
-    const monthResponses = allResponses.filter((r) => responseMonth(r) === m);
-    return calcNps(monthResponses) ?? 0;
+    const monthResponses = withMonth.filter((r) => responseMonth(r) === m);
+    return calcNps(monthResponses);
   });
 
   return { labels, values };
@@ -249,8 +244,14 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
       datasets: [
         {
           label: "NPS",
-          data: monthly.values.map((v) => Math.max(0, v)),
-          backgroundColor: "rgba(59, 130, 246, 0.8)",
+          data: monthly.values.map((v) => (v === null ? 0 : v)),
+          backgroundColor: monthly.values.map((v) =>
+            v === null
+              ? "rgba(139, 156, 179, 0.35)"
+              : v >= 0
+                ? "rgba(59, 130, 246, 0.8)"
+                : "rgba(239, 68, 68, 0.8)",
+          ),
           borderRadius: 6,
         },
       ],
@@ -264,7 +265,7 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
           callbacks: {
             label: (ctx) => {
               const real = monthly.values[ctx.dataIndex];
-              if (real === undefined) return "";
+              if (real === null || real === undefined) return "Нет данных";
               return `NPS: ${real > 0 ? "+" : ""}${real}`;
             },
           },
@@ -272,10 +273,13 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
       },
       scales: {
         y: {
-          min: 0,
+          min: -100,
           max: 100,
           grid: { color: gridColor },
-          ticks: { color: textColor },
+          ticks: {
+            color: textColor,
+            callback: (v) => (v > 0 ? `+${v}` : String(v)),
+          },
         },
         x: {
           grid: { display: false },
@@ -458,23 +462,28 @@ function escapeHtml(str) {
 function render() {
   if (!rawData) return;
 
-  const monthFilter = document.getElementById("filter-month").value;
-  const reviewType = document.getElementById("review-filter-type").value;
-  const reviewScore = document.getElementById("review-filter-score").value;
+  try {
+    const monthFilter = document.getElementById("filter-month")?.value || "all";
+    const reviewType = document.getElementById("review-filter-type")?.value || "all";
+    const reviewScore = document.getElementById("review-filter-score")?.value || "all";
 
-  const dashboardResponses = filterResponsesForDashboard(rawData.responses, monthFilter);
-  const tableResponses = filterResponsesForTable(
-    rawData.responses,
-    monthFilter,
-    reviewType,
-    reviewScore,
-  );
-  const calls = rawData.calls || [];
+    const dashboardResponses = filterResponsesForDashboard(rawData.responses || [], monthFilter);
+    const tableResponses = filterResponsesForTable(
+      rawData.responses || [],
+      monthFilter,
+      reviewType,
+      reviewScore,
+    );
+    const calls = rawData.calls || [];
 
-  updateKpis(dashboardResponses);
-  updateCharts(dashboardResponses, rawData.responses, calls, monthFilter);
-  renderTable(tableResponses);
-  updateCallKpis(calls, rawData.responses, monthFilter);
+    updateKpis(dashboardResponses);
+    updateCharts(dashboardResponses, rawData.responses || [], calls, monthFilter);
+    renderTable(tableResponses);
+    updateCallKpis(calls, rawData.responses || [], monthFilter);
+  } catch (err) {
+    console.error(err);
+    setStatus("Ошибка отображения: " + err.message, true);
+  }
 }
 
 const DATA_XLSX = "data.xlsx";
@@ -529,6 +538,11 @@ function applyData(data) {
   const errBox = document.getElementById("load-error");
   if (errBox) errBox.classList.add("hidden");
   populateMonthFilter(rawData.responses, rawData.calls);
+
+  if (!rawData.responses.length && !rawData.calls.length) {
+    setStatus("Файл загружен, но строк данных не найдено. Проверьте колонки в Excel.", true);
+  }
+
   render();
 }
 
@@ -602,7 +616,7 @@ function injectDocs() {
     <h3>Колонки в Excel</h3>
     <ul>
       <li><strong>Дозвон</strong>, <strong>Оценка</strong>, <strong>Дата регистрации бизнеса</strong>, <strong>Комментарий</strong></li>
-      <li><strong>Месяц обзвона</strong> — последний столбец</li>
+      <li><strong>месяц оценки</strong> — для графика NPS по месяцам (дата или 4.26)</li>
     </ul>
     <h3>Обновление</h3>
     <ol>
