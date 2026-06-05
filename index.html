@@ -24,7 +24,7 @@
 
     <section class="filters">
       <div class="filter-group">
-        <label for="filter-month">Месяц</label>
+        <label for="filter-month">Месяц обзвона</label>
         <select id="filter-month">
           <option value="all">Все месяцы</option>
         </select>
@@ -41,6 +41,30 @@
       <button type="button" id="reset-filters" class="btn btn-ghost">Сбросить</button>
     </section>
 
+    <section class="calls-section">
+      <h2 class="section-title">Дозвоны по базе</h2>
+      <p class="section-note">NPS считается только по клиентам со статусом «Дозвон» и оценкой 0–10. Ниже — вся база из Excel.</p>
+      <div class="kpi-grid calls-kpi-grid">
+        <article class="kpi-card">
+          <span class="kpi-label">База</span>
+          <span class="kpi-value" id="kpi-base">—</span>
+          <span class="kpi-hint">все строки с дозвоном</span>
+        </article>
+        <article class="kpi-card kpi-connected">
+          <span class="kpi-label">Дозвон</span>
+          <span class="kpi-value" id="kpi-connected">—</span>
+          <span class="kpi-pct" id="kpi-connected-of-base"></span>
+        </article>
+        <article class="kpi-card kpi-rate">
+          <span class="kpi-label">% дозвона</span>
+          <span class="kpi-value" id="kpi-call-rate">—</span>
+          <span class="kpi-hint" id="kpi-call-breakdown"></span>
+        </article>
+      </div>
+    </section>
+
+    <section class="kpi-section">
+      <h2 class="section-title">NPS по оценкам</h2>
     <section class="kpi-grid" id="kpi-grid">
       <article class="kpi-card kpi-nps">
         <span class="kpi-label">Общий NPS</span>
@@ -67,10 +91,17 @@
         <span class="kpi-pct" id="kpi-detractors-pct"></span>
       </article>
     </section>
+    </section>
 
     <section class="charts-grid">
       <article class="panel">
-        <h2>NPS по месяцам</h2>
+        <h2>% дозвона по месяцам обзвона</h2>
+        <div class="chart-wrap">
+          <canvas id="chart-call-rate"></canvas>
+        </div>
+      </article>
+      <article class="panel">
+        <h2>NPS по месяцам обзвона</h2>
         <div class="chart-wrap">
           <canvas id="chart-nps-monthly"></canvas>
         </div>
@@ -79,6 +110,13 @@
         <h2>Распределение оценок (0–10)</h2>
         <div class="chart-wrap">
           <canvas id="chart-distribution"></canvas>
+        </div>
+      </article>
+      <article class="panel panel-wide">
+        <h2>NPS по возрасту клиента</h2>
+        <p class="panel-desc">Возраст = от даты регистрации бизнеса до сегодня</p>
+        <div class="chart-wrap">
+          <canvas id="chart-age-nps"></canvas>
         </div>
       </article>
     </section>
@@ -92,7 +130,9 @@
         <table class="reviews-table">
           <thead>
             <tr>
-              <th>Дата</th>
+              <th>Месяц обзвона</th>
+              <th>Регистрация</th>
+              <th>Возраст</th>
               <th>Оценка</th>
               <th>Тип</th>
               <th>Комментарий</th>
@@ -110,7 +150,7 @@
         <div class="doc-content" id="doc-local"></div>
       </details>
       <details class="doc-block">
-        <summary>Как обновить data.json</summary>
+        <summary>Как обновить Excel</summary>
         <div class="doc-content" id="doc-update"></div>
       </details>
       <details class="doc-block">
@@ -121,10 +161,12 @@
   </div>
 
   <div id="load-error" class="load-error hidden">
-    <p>Не удалось загрузить <code>data.json</code>.</p>
-    <p>Не открывайте <code>index.html</code> двойным щелчком — нужен локальный сервер. См. блок «Как открыть локально» внизу или запустите <code>start.bat</code>.</p>
+    <p>Не удалось загрузить <code>data.xlsx</code>.</p>
+    <p>Положите Excel-файл в папку проекта как <code>data.xlsx</code>. Не открывайте <code>index.html</code> двойным щелчком — запустите <code>start.bat</code>.</p>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="parse-workbook.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
