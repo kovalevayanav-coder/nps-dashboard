@@ -531,9 +531,12 @@ function applyData(data) {
   monthCatalog = buildMonthCatalog(rawData.responses, rawData.calls);
 
   const meta = rawData.meta || {};
-  const updated = meta.updatedAt
+  let updated = meta.updatedAt
     ? `Обновлено: ${meta.updatedAt}${meta.source ? " · " + meta.source : ""}`
     : "Данные загружены";
+  if (rawData.mapping?.surveyMonthHeader) {
+    updated += ` · колонка месяца: «${rawData.mapping.surveyMonthHeader}»`;
+  }
   setStatus(updated, false);
   const errBox = document.getElementById("load-error");
   if (errBox) errBox.classList.add("hidden");
@@ -541,6 +544,14 @@ function applyData(data) {
 
   if (!rawData.responses.length && !rawData.calls.length) {
     setStatus("Файл загружен, но строк данных не найдено. Проверьте колонки в Excel.", true);
+  } else {
+    const noMonth = (rawData.responses || []).filter((r) => !responseMonth(r)).length;
+    if (noMonth > 0) {
+      setStatus(
+        `${updated} · ⚠ ${noMonth} ответов без «месяц оценки» — проверьте колонку в Excel`,
+        true,
+      );
+    }
   }
 
   render();
