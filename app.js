@@ -418,6 +418,25 @@ function hasMeaningfulComment(r) {
   return c && c !== "—" && c !== "-";
 }
 
+function normalizeCommentKey(comment) {
+  return String(comment ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/^[—\-–]+|[—\-–]+$/g, "");
+}
+
+function dedupeReviewsByComment(responses) {
+  const seen = new Set();
+  return responses.filter((r) => {
+    const normalized = normalizeCommentKey(r.comment);
+    const key = normalized || `__empty_${r.score}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function buildTopReviews(responses, kind) {
   const pool = responses.filter((r) =>
     kind === "positive" ? r.score >= 9 : r.score <= 6,
@@ -436,7 +455,7 @@ function buildTopReviews(responses, kind) {
     return String(b.comment || "").length - String(a.comment || "").length;
   });
 
-  return sorted.slice(0, SUMMARY_TOP);
+  return dedupeReviewsByComment(sorted).slice(0, SUMMARY_TOP);
 }
 
 function renderSummaryItem(r) {
