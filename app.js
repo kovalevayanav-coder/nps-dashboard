@@ -42,15 +42,12 @@ function responseMonth(r) {
 function isValidMonthKey(key) {
   if (!key) return false;
   if (/^\d{4}-\d{2}$/.test(key)) return Number(key.slice(0, 4)) >= 2020;
-  const label = monthCatalog.get(key) || key;
-  return !/1899|1900/.test(String(label));
+  return !/1899|1900/.test(String(monthCatalog.get(key) || key));
 }
 
 function monthLabel(key) {
   if (!key) return "—";
-  const label = monthCatalog.get(key) || formatMonthKeyLabel(key);
-  if (/1899|1900/.test(label)) return formatMonthKeyLabel(key).includes("1899") ? "—" : label;
-  return label;
+  return monthCatalog.get(key) || formatMonthKeyLabel(key);
 }
 
 function callMonth(c) {

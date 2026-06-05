@@ -91,11 +91,27 @@ function expandYear(y) {
   return 2000 + n;
 }
 
+function formatNumericMonthLabel(monthNum, year, raw) {
+  const rawStr = String(raw ?? "").trim().replace(",", ".");
+  if (/^(\d{1,2})\.(\d{2})$/.test(rawStr)) return rawStr;
+  if (/^(\d{1,2})\s+(\d{2})$/.test(rawStr)) {
+    const m = rawStr.match(/^(\d{1,2})\s+(\d{2})$/);
+    return `${m[1]}.${m[2]}`;
+  }
+  if (/^\d{4}$/.test(rawStr)) {
+    return `${Number(rawStr.slice(0, 2))}.${rawStr.slice(2)}`;
+  }
+  return `${monthNum}.${String(year).slice(-2)}`;
+}
+
 function buildMonthLabel(monthNum, year, raw) {
+  const rawN = String(raw).trim().toLowerCase().replace(/\u00a0/g, " ");
+  if (/^[\d.,\s]+$/.test(rawN) || typeof raw === "number") {
+    return formatNumericMonthLabel(monthNum, year, raw);
+  }
   const abbr = MONTH_ABBR[monthNum - 1];
   const full = MONTH_FULL[monthNum - 1];
   const yy = String(year).slice(-2);
-  const rawN = String(raw).trim().toLowerCase().replace(/\u00a0/g, " ");
   if (/\.|(?:\s)\d{2}$/.test(rawN) && !/20\d{2}/.test(rawN)) {
     return `${abbr}.${yy}`;
   }
@@ -121,6 +137,55 @@ function rawMonthFallback(raw) {
   return { key, label: text };
 }
 
+function parseNumericMonth(v) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+
+  // Дробное: 4.26 = апрель 2026, 5.26 = май 2026
+  if (v >= 1 && v < 100 && !Number.isInteger(v)) {
+    const fixed = v.toFixed(2);
+    const parts = fixed.split(".");
+    const mo = Number(parts[0]);
+    const yy = expandYear(parts[1]);
+    return monthResult(mo, yy, fixed);
+  }
+
+  const rounded = Math.round(v);
+  const s = String(rounded);
+
+  // YYYYMM: 202604
+  if (s.length === 6 && rounded >= 202001 && rounded <= 203512) {
+    return monthResult(Number(s.slice(4)), Number(s.slice(0, 4)), s);
+  }
+
+  // MMYY: 0426, 526, 426
+  if (rounded >= 100 && rounded <= 9999) {
+    if (s.length === 4) {
+      const r = monthResult(Number(s.slice(0, 2)), expandYear(s.slice(2)), s);
+      if (r) return r;
+    }
+    if (s.length === 3) {
+      const r = monthResult(Number(s[0]), expandYear(s.slice(1)), s);
+      if (r) return r;
+    }
+  }
+
+  // Только номер месяца: 4, 5, 12
+  if (rounded >= 1 && rounded <= 12) {
+    return monthResult(rounded, new Date().getFullYear(), String(rounded));
+  }
+
+  // Excel serial (только 2020+)
+  if (rounded >= 43831) {
+    const fromSerial = excelSerialToDate(v);
+    if (fromSerial) {
+      const r = monthResult(fromSerial.getMonth() + 1, fromSerial.getFullYear(), v);
+      if (r) return r;
+    }
+  }
+
+  return null;
+}
+
 function parseSurveyMonth(v) {
   if (v === null || v === undefined || v === "") return null;
 
@@ -130,29 +195,35 @@ function parseSurveyMonth(v) {
   }
 
   if (typeof v === "number" && Number.isFinite(v)) {
-    const rounded = Math.round(v);
-    const s = String(rounded);
-    if (s.length === 6 && rounded >= 202001 && rounded <= 203512) {
-      const y = Number(s.slice(0, 4));
-      const mo = Number(s.slice(4));
-      const r = monthResult(mo, y, s);
-      if (r) return r;
-    }
-    // Excel serial только для дат 2020+ (серийный номер ~43831)
-    if (rounded >= 43831) {
-      const fromSerial = excelSerialToDate(v);
-      if (fromSerial) {
-        const r = monthResult(fromSerial.getMonth() + 1, fromSerial.getFullYear(), v);
-        if (r) return r;
-      }
-    }
+    const r = parseNumericMonth(v);
+    if (r) return r;
     return null;
   }
 
   const raw = String(v).trim();
   const s = raw.toLowerCase().replace(/\u00a0/g, " ");
 
-  let m = s.match(/^(\d{4})[.\-\/](\d{1,2})$/);
+  // Текстовые цифры: "4.26", "5.26", "04.26"
+  let m = s.match(/^(\d{1,2})[.,](\d{2})$/);
+  if (m) {
+    const r = monthResult(Number(m[1]), expandYear(m[2]), raw);
+    if (r) return r;
+  }
+
+  m = s.match(/^(\d{4})$/);
+  if (m) {
+    const digits = m[1];
+    const r = monthResult(Number(digits.slice(0, 2)), expandYear(digits.slice(2)), raw);
+    if (r) return r;
+  }
+
+  const asNum = Number(raw.replace(",", "."));
+  if (!Number.isNaN(asNum) && /^[\d.,]+$/.test(raw)) {
+    const r = parseNumericMonth(asNum);
+    if (r) return r;
+  }
+
+  m = s.match(/^(\d{4})[.\-\/](\d{1,2})$/);
   if (m) {
     const r = monthResult(Number(m[2]), Number(m[1]), raw);
     if (r) return r;
@@ -378,9 +449,7 @@ function parseNpsWorkbook(wb, sourceLabel) {
 function formatMonthKeyLabel(key) {
   const [y, mo] = String(key).split("-");
   if (!y || !mo || Number.isNaN(Number(mo)) || Number(y) < 2020) return String(key);
-  const abbr = MONTH_ABBR[Number(mo) - 1];
-  if (!abbr) return key;
-  return `${abbr}.${y.slice(-2)}`;
+  return `${Number(mo)}.${y.slice(-2)}`;
 }
 
 function normalizeLegacyItem(item) {
