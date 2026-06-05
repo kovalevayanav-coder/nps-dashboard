@@ -8,20 +8,17 @@ const AGE_COHORTS = [
   { key: "12+", label: "От 1 года" },
 ];
 
+const MONTH_ABBR = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const MONTH_FULL = [
+  "январь", "февраль", "март", "апрель", "май", "июнь",
+  "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+];
+
 const RU_MONTH_STEMS = [
-  ["январ", 1],
-  ["феврал", 2],
-  ["март", 3],
-  ["апрел", 4],
-  ["май", 5],
-  ["мая", 5],
-  ["июн", 6],
-  ["июл", 7],
-  ["август", 8],
-  ["сентябр", 9],
-  ["октябр", 10],
-  ["ноябр", 11],
-  ["декабр", 12],
+  ["янв", 1], ["фев", 2], ["мар", 3], ["апр", 4], ["май", 5], ["мая", 5],
+  ["июн", 6], ["июл", 7], ["авг", 8], ["сен", 9], ["окт", 10], ["ноя", 11], ["дек", 12],
+  ["январ", 1], ["феврал", 2], ["март", 3], ["апрел", 4],
+  ["июл", 7], ["август", 8], ["сентябр", 9], ["октябр", 10], ["ноябр", 11], ["декабр", 12],
 ];
 
 function normHeader(h) {
@@ -88,43 +85,81 @@ function toMonthKey(y, m) {
   return `${y}-${String(m).padStart(2, "0")}`;
 }
 
+function expandYear(y) {
+  const n = Number(y);
+  if (n >= 100) return n;
+  return 2000 + n;
+}
+
+function buildMonthLabel(monthNum, year, raw) {
+  const abbr = MONTH_ABBR[monthNum - 1];
+  const full = MONTH_FULL[monthNum - 1];
+  const yy = String(year).slice(-2);
+  const rawN = String(raw).trim().toLowerCase().replace(/\u00a0/g, " ");
+  if (/\.|(?:\s)\d{2}$/.test(rawN) && !/20\d{2}/.test(rawN)) {
+    return `${abbr}.${yy}`;
+  }
+  return `${full} ${year}`;
+}
+
+function monthResult(monthNum, year, raw) {
+  return {
+    key: toMonthKey(year, monthNum),
+    label: buildMonthLabel(monthNum, year, raw),
+  };
+}
+
 function parseSurveyMonth(v) {
   if (v === null || v === undefined || v === "") return null;
 
   if (v instanceof Date && !Number.isNaN(v.getTime())) {
-    return toMonthKey(v.getFullYear(), v.getMonth() + 1);
+    return monthResult(v.getMonth() + 1, v.getFullYear(), v);
   }
 
   if (typeof v === "number" && Number.isFinite(v)) {
     const rounded = Math.round(v);
     const s = String(rounded);
     if (s.length === 6 && rounded >= 190001 && rounded <= 210012) {
-      return `${s.slice(0, 4)}-${s.slice(4)}`;
+      const y = Number(s.slice(0, 4));
+      const mo = Number(s.slice(4));
+      return monthResult(mo, y, s);
     }
     const fromSerial = excelSerialToDate(v);
-    if (fromSerial) return toMonthKey(fromSerial.getFullYear(), fromSerial.getMonth() + 1);
+    if (fromSerial) return monthResult(fromSerial.getMonth() + 1, fromSerial.getFullYear(), v);
   }
 
   const raw = String(v).trim();
   const s = raw.toLowerCase().replace(/\u00a0/g, " ");
 
   let m = s.match(/^(\d{4})[.\-\/](\d{1,2})$/);
-  if (m) return toMonthKey(Number(m[1]), Number(m[2]));
+  if (m) return monthResult(Number(m[2]), Number(m[1]), raw);
 
   m = s.match(/^(\d{1,2})[.\-\/](\d{4})$/);
-  if (m) return toMonthKey(Number(m[2]), Number(m[1]));
+  if (m) return monthResult(Number(m[1]), Number(m[2]), raw);
 
-  for (const [stem, mo] of RU_MONTH_STEMS) {
-    if (s.includes(stem)) {
-      const y = s.match(/20\d{2}/);
-      if (y) return toMonthKey(Number(y[0]), mo);
+  m = s.match(/^([а-яё]{3,12})[\s.]+(\d{2,4})$/);
+  if (m) {
+    const stem = m[1];
+    const year = expandYear(m[2]);
+    for (const [name, mo] of RU_MONTH_STEMS) {
+      if (stem === name || stem.startsWith(name) || name.startsWith(stem)) {
+        return monthResult(mo, year, raw);
+      }
     }
   }
 
-  const asDate = parseDate(raw);
-  if (asDate) return toMonthKey(asDate.getFullYear(), asDate.getMonth() + 1);
+  for (const [stem, mo] of RU_MONTH_STEMS) {
+    if (!s.includes(stem)) continue;
+    const y4 = s.match(/20\d{2}/);
+    if (y4) return monthResult(mo, Number(y4[0]), raw);
+    const y2 = s.match(/(?:[\s.])(\d{2})\s*$/);
+    if (y2) return monthResult(mo, expandYear(y2[1]), raw);
+  }
 
-  return null;
+  const asDate = parseDate(raw);
+  if (asDate) return monthResult(asDate.getMonth() + 1, asDate.getFullYear(), raw);
+
+  return { key: s, label: raw };
 }
 
 function isSuccessfulCall(status) {
@@ -219,9 +254,9 @@ function parseNpsRows(rowsArr, sourceLabel) {
     const score = parseScore(line[idxScore]);
     const comment = idxComment >= 0 ? String(line[idxComment] ?? "").trim() : "";
     const regDateObj = idxRegDate >= 0 ? parseDate(line[idxRegDate]) : null;
-    const surveyMonth = parseSurveyMonth(line[idxSurveyMonth]);
+    const monthParsed = parseSurveyMonth(line[idxSurveyMonth]);
 
-    const empty = !callStatus && score === null && !comment && !regDateObj && !surveyMonth;
+    const empty = !callStatus && score === null && !comment && !regDateObj && !monthParsed;
     if (empty) {
       skipped.empty++;
       continue;
@@ -233,7 +268,8 @@ function parseNpsRows(rowsArr, sourceLabel) {
     }
 
     calls.push({
-      surveyMonth,
+      surveyMonth: monthParsed?.key ?? null,
+      surveyMonthLabel: monthParsed?.label ?? null,
       registrationDate: regDateObj ? toIsoDate(regDateObj) : null,
       status: callStatus,
     });
@@ -245,14 +281,15 @@ function parseNpsRows(rowsArr, sourceLabel) {
       continue;
     }
 
-    if (!surveyMonth) {
+    if (!monthParsed?.key) {
       skipped.noSurveyMonth++;
       continue;
     }
 
     responses.push({
       id: id.startsWith("r") ? id : `r${id}`,
-      surveyMonth,
+      surveyMonth: monthParsed.key,
+      surveyMonthLabel: monthParsed.label,
       registrationDate: regDateObj ? toIsoDate(regDateObj) : null,
       score,
       comment: comment || "—",
@@ -290,10 +327,21 @@ function parseNpsWorkbook(wb, sourceLabel) {
   return parseNpsRows(rowsArr, sourceLabel || sheetName);
 }
 
+function formatMonthKeyLabel(key) {
+  const [y, mo] = String(key).split("-");
+  if (!y || !mo || Number.isNaN(Number(mo))) return key;
+  const abbr = MONTH_ABBR[Number(mo) - 1];
+  if (!abbr) return key;
+  return `${abbr}.${y.slice(-2)}`;
+}
+
 function normalizeLegacyItem(item) {
   if (!item) return item;
   if (!item.surveyMonth && item.date) {
     item.surveyMonth = item.date.length >= 7 ? item.date.slice(0, 7) : item.date;
+  }
+  if (!item.surveyMonthLabel && item.surveyMonth) {
+    item.surveyMonthLabel = formatMonthKeyLabel(item.surveyMonth);
   }
   if (!item.registrationDate && item.date && item.date.length === 10) {
     item.registrationDate = item.date;
@@ -310,6 +358,7 @@ const exportsObj = {
   getAgeCohortKey,
   getAgeCohortLabel,
   normalizeLegacyItem,
+  formatMonthKeyLabel,
 };
 
 if (typeof window !== "undefined") {

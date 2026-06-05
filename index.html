@@ -29,77 +29,40 @@
           <option value="all">Все месяцы</option>
         </select>
       </div>
-      <div class="filter-group">
-        <label for="filter-type">Тип оценки</label>
-        <select id="filter-type">
-          <option value="all">Все</option>
-          <option value="promoter">Промоутеры (9–10)</option>
-          <option value="passive">Нейтралы (7–8)</option>
-          <option value="detractor">Критики (0–6)</option>
-        </select>
-      </div>
       <button type="button" id="reset-filters" class="btn btn-ghost">Сбросить</button>
-    </section>
-
-    <section class="calls-section">
-      <h2 class="section-title">Дозвоны по базе</h2>
-      <p class="section-note">NPS считается только по клиентам со статусом «Дозвон» и оценкой 0–10. Ниже — вся база из Excel.</p>
-      <div class="kpi-grid calls-kpi-grid">
-        <article class="kpi-card">
-          <span class="kpi-label">База</span>
-          <span class="kpi-value" id="kpi-base">—</span>
-          <span class="kpi-hint">все строки с дозвоном</span>
-        </article>
-        <article class="kpi-card kpi-connected">
-          <span class="kpi-label">Дозвон</span>
-          <span class="kpi-value" id="kpi-connected">—</span>
-          <span class="kpi-pct" id="kpi-connected-of-base"></span>
-        </article>
-        <article class="kpi-card kpi-rate">
-          <span class="kpi-label">% дозвона</span>
-          <span class="kpi-value" id="kpi-call-rate">—</span>
-          <span class="kpi-hint" id="kpi-call-breakdown"></span>
-        </article>
-      </div>
     </section>
 
     <section class="kpi-section">
       <h2 class="section-title">NPS по оценкам</h2>
-    <section class="kpi-grid" id="kpi-grid">
-      <article class="kpi-card kpi-nps">
-        <span class="kpi-label">Общий NPS</span>
-        <span class="kpi-value" id="kpi-nps">—</span>
-        <span class="kpi-hint">−100 … +100</span>
-      </article>
-      <article class="kpi-card">
-        <span class="kpi-label">Ответов</span>
-        <span class="kpi-value" id="kpi-total">—</span>
-      </article>
-      <article class="kpi-card kpi-promoter">
-        <span class="kpi-label">Промоутеры</span>
-        <span class="kpi-value" id="kpi-promoters">—</span>
-        <span class="kpi-pct" id="kpi-promoters-pct"></span>
-      </article>
-      <article class="kpi-card kpi-passive">
-        <span class="kpi-label">Нейтралы</span>
-        <span class="kpi-value" id="kpi-passives">—</span>
-        <span class="kpi-pct" id="kpi-passives-pct"></span>
-      </article>
-      <article class="kpi-card kpi-detractor">
-        <span class="kpi-label">Критики</span>
-        <span class="kpi-value" id="kpi-detractors">—</span>
-        <span class="kpi-pct" id="kpi-detractors-pct"></span>
-      </article>
-    </section>
+      <section class="kpi-grid" id="kpi-grid">
+        <article class="kpi-card kpi-nps">
+          <span class="kpi-label">Общий NPS</span>
+          <span class="kpi-value" id="kpi-nps">—</span>
+          <span class="kpi-hint">−100 … +100</span>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-label">Ответов</span>
+          <span class="kpi-value" id="kpi-total">—</span>
+        </article>
+        <article class="kpi-card kpi-promoter">
+          <span class="kpi-label">Промоутеры</span>
+          <span class="kpi-value" id="kpi-promoters">—</span>
+          <span class="kpi-pct" id="kpi-promoters-pct"></span>
+        </article>
+        <article class="kpi-card kpi-passive">
+          <span class="kpi-label">Нейтралы</span>
+          <span class="kpi-value" id="kpi-passives">—</span>
+          <span class="kpi-pct" id="kpi-passives-pct"></span>
+        </article>
+        <article class="kpi-card kpi-detractor">
+          <span class="kpi-label">Критики</span>
+          <span class="kpi-value" id="kpi-detractors">—</span>
+          <span class="kpi-pct" id="kpi-detractors-pct"></span>
+        </article>
+      </section>
     </section>
 
     <section class="charts-grid">
-      <article class="panel">
-        <h2>% дозвона по месяцам обзвона</h2>
-        <div class="chart-wrap">
-          <canvas id="chart-call-rate"></canvas>
-        </div>
-      </article>
       <article class="panel">
         <h2>NPS по месяцам обзвона</h2>
         <div class="chart-wrap">
@@ -126,6 +89,34 @@
         <h2>Отзывы</h2>
         <span class="reviews-count" id="reviews-count"></span>
       </div>
+      <div class="filters reviews-filters">
+        <div class="filter-group">
+          <label for="review-filter-type">Тип оценки</label>
+          <select id="review-filter-type">
+            <option value="all">Все</option>
+            <option value="promoter">Промоутеры (9–10)</option>
+            <option value="passive">Нейтралы (7–8)</option>
+            <option value="detractor">Критики (0–6)</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="review-filter-score">Оценка</label>
+          <select id="review-filter-score">
+            <option value="all">Все</option>
+            <option value="10">10</option>
+            <option value="9">9</option>
+            <option value="8">8</option>
+            <option value="7">7</option>
+            <option value="6">6</option>
+            <option value="5">5</option>
+            <option value="4">4</option>
+            <option value="3">3</option>
+            <option value="2">2</option>
+            <option value="1">1</option>
+            <option value="0">0</option>
+          </select>
+        </div>
+      </div>
       <div class="table-wrap">
         <table class="reviews-table">
           <thead>
@@ -144,11 +135,34 @@
       <p id="reviews-empty" class="empty-state hidden">Нет отзывов по выбранным фильтрам</p>
     </section>
 
+    <section class="calls-section">
+      <h2 class="section-title">Дозвоны по базе</h2>
+      <div class="kpi-grid calls-kpi-grid">
+        <article class="kpi-card">
+          <span class="kpi-label">База всего</span>
+          <span class="kpi-value" id="kpi-base">—</span>
+        </article>
+        <article class="kpi-card kpi-connected">
+          <span class="kpi-label">Дозвон</span>
+          <span class="kpi-value" id="kpi-connected">—</span>
+          <span class="kpi-pct" id="kpi-connected-pct"></span>
+        </article>
+        <article class="kpi-card kpi-scored">
+          <span class="kpi-label">Получено оценок</span>
+          <span class="kpi-value" id="kpi-scored">—</span>
+          <span class="kpi-pct" id="kpi-scored-pct"></span>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel calls-chart-panel">
+      <h2>% дозвона по месяцам обзвона</h2>
+      <div class="chart-wrap">
+        <canvas id="chart-call-rate"></canvas>
+      </div>
+    </section>
+
     <footer class="docs-footer">
-      <details class="doc-block" open>
-        <summary>Как открыть локально</summary>
-        <div class="doc-content" id="doc-local"></div>
-      </details>
       <details class="doc-block">
         <summary>Как обновить Excel</summary>
         <div class="doc-content" id="doc-update"></div>
@@ -162,7 +176,7 @@
 
   <div id="load-error" class="load-error hidden">
     <p>Не удалось загрузить <code>data.xlsx</code>.</p>
-    <p>Положите Excel-файл в папку проекта как <code>data.xlsx</code>. Не открывайте <code>index.html</code> двойным щелчком — запустите <code>start.bat</code>.</p>
+    <p>Положите Excel-файл в папку проекта как <code>data.xlsx</code>.</p>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>

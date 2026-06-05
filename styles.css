@@ -185,8 +185,17 @@ body {
   color: var(--accent);
 }
 
-.kpi-rate .kpi-value {
+.kpi-scored .kpi-value {
   color: #a78bfa;
+}
+
+.reviews-filters {
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.calls-chart-panel {
+  margin-bottom: 1.75rem;
 }
 
 /* KPI */

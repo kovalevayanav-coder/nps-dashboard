@@ -1,4 +1,5 @@
 let rawData = null;
+let monthCatalog = new Map();
 let chartMonthly = null;
 let chartDistribution = null;
 let chartCallRate = null;
@@ -25,11 +26,6 @@ function calcNps(responses) {
   return Math.round(((promoters - detractors) / total) * 100);
 }
 
-function formatMonth(dateStr) {
-  const d = new Date(dateStr + "T12:00:00");
-  return d.toLocaleDateString("ru-RU", { year: "numeric", month: "long" });
-}
-
 function formatDate(dateStr) {
   const d = new Date(dateStr + "T12:00:00");
   return d.toLocaleDateString("ru-RU", {
@@ -43,20 +39,46 @@ function responseMonth(r) {
   return r.surveyMonth || (r.date ? r.date.slice(0, 7) : null);
 }
 
-function formatSurveyMonth(monthKeyStr) {
-  if (!monthKeyStr) return "—";
-  const [y, mo] = monthKeyStr.split("-");
-  if (!y || !mo) return monthKeyStr;
-  return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString("ru-RU", {
-    year: "numeric",
-    month: "long",
+function monthLabel(key) {
+  if (!key) return "—";
+  return monthCatalog.get(key) || formatMonthKeyLabel(key);
+}
+
+function callMonth(c) {
+  return c.surveyMonth || (c.date ? c.date.slice(0, 7) : null);
+}
+
+function buildMonthCatalog(responses, calls) {
+  const map = new Map();
+  const add = (key, label) => {
+    if (!key) return;
+    if (!map.has(key) || label) map.set(key, label || formatMonthKeyLabel(key));
+  };
+  (calls || []).forEach((c) => add(callMonth(c), c.surveyMonthLabel));
+  (responses || []).forEach((r) => add(responseMonth(r), r.surveyMonthLabel));
+  return map;
+}
+
+function sortMonthKeys(keys) {
+  return [...keys].sort((a, b) => {
+    if (/^\d{4}-\d{2}$/.test(a) && /^\d{4}-\d{2}$/.test(b)) return a.localeCompare(b);
+    return String(a).localeCompare(String(b), "ru");
   });
 }
 
-function filterResponses(responses, monthFilter, typeFilter) {
-  return responses.filter((r) => {
-    if (monthFilter !== "all" && responseMonth(r) !== monthFilter) return false;
+function filterByMonth(items, monthFilter, getMonth) {
+  if (monthFilter === "all") return items;
+  return items.filter((x) => getMonth(x) === monthFilter);
+}
+
+function filterResponsesForDashboard(responses, monthFilter) {
+  return filterByMonth(responses, monthFilter, responseMonth);
+}
+
+function filterResponsesForTable(responses, monthFilter, typeFilter, scoreFilter) {
+  return filterResponsesForDashboard(responses, monthFilter).filter((r) => {
     if (typeFilter !== "all" && getScoreType(r.score) !== typeFilter) return false;
+    if (scoreFilter !== "all" && r.score !== Number(scoreFilter)) return false;
     return true;
   });
 }
@@ -66,74 +88,39 @@ function pct(part, total) {
   return `${Math.round((part / total) * 100)}%`;
 }
 
-function callMonth(c) {
-  return c.surveyMonth || (c.date ? c.date.slice(0, 7) : null);
-}
-
-function filterCalls(calls, monthFilter) {
-  if (!calls?.length) return [];
-  if (monthFilter === "all") return calls;
-  return calls.filter((c) => callMonth(c) === monthFilter);
-}
-
 function calcCallStats(calls) {
   const total = calls.length;
   const connected = calls.filter((c) => isSuccessfulCall(c.status)).length;
   const rate = total ? Math.round((connected / total) * 100) : null;
-  const byStatus = {};
-  calls.forEach((c) => {
-    const st = c.status || "Без статуса";
-    byStatus[st] = (byStatus[st] || 0) + 1;
-  });
-  return { total, connected, rate, byStatus };
+  return { total, connected, rate };
 }
 
-function updateCallKpis(calls, monthFilter) {
-  const filtered = filterCalls(calls, monthFilter);
-  const stats = calcCallStats(filtered);
-  const hasCalls = calls?.length > 0;
+function updateCallKpis(calls, responses, monthFilter) {
+  const filteredCalls = filterByMonth(calls || [], monthFilter, callMonth);
+  const filteredResponses = filterResponsesForDashboard(responses || [], monthFilter);
+  const stats = calcCallStats(filteredCalls);
+  const scored = filteredResponses.length;
+  const hasCalls = (calls || []).length > 0;
 
   document.getElementById("kpi-base").textContent = hasCalls ? stats.total : "—";
   document.getElementById("kpi-connected").textContent = hasCalls ? stats.connected : "—";
-  document.getElementById("kpi-connected-of-base").textContent = hasCalls
+  document.getElementById("kpi-connected-pct").textContent = hasCalls
     ? `${pct(stats.connected, stats.total)} от базы`
     : "";
 
-  const rateEl = document.getElementById("kpi-call-rate");
-  if (!hasCalls || stats.rate === null) {
-    rateEl.textContent = "—";
-  } else {
-    rateEl.textContent = `${stats.rate}%`;
-  }
-
-  const breakdownEl = document.getElementById("kpi-call-breakdown");
-  if (!hasCalls) {
-    breakdownEl.textContent = "Нет данных — положите data.xlsx в папку проекта";
-    return;
-  }
-
-  const other = Object.entries(stats.byStatus)
-    .filter(([st]) => !isSuccessfulCall(st))
-    .sort((a, b) => b[1] - a[1])
-    .map(([st, n]) => `${st}: ${n}`)
-    .join(" · ");
-  breakdownEl.textContent = other || "остальные статусы: 0";
+  document.getElementById("kpi-scored").textContent = hasCalls ? scored : "—";
+  document.getElementById("kpi-scored-pct").textContent = hasCalls
+    ? `${pct(scored, stats.total)} от базы`
+    : "";
 }
 
 function buildMonthlyCallRate(calls, monthFilter) {
   const withMonth = (calls || []).filter((c) => callMonth(c));
-  const months = [...new Set(withMonth.map((c) => callMonth(c)))].sort();
+  const months = sortMonthKeys([...new Set(withMonth.map((c) => callMonth(c)))]);
   const filteredMonths =
     monthFilter !== "all" ? months.filter((m) => m === monthFilter) : months;
 
-  const labels = filteredMonths.map((m) => {
-    const [y, mo] = m.split("-");
-    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString("ru-RU", {
-      month: "short",
-      year: "2-digit",
-    });
-  });
-
+  const labels = filteredMonths.map((m) => monthLabel(m));
   const values = filteredMonths.map((m) => {
     const monthCalls = withMonth.filter((c) => callMonth(c) === m);
     const { rate } = calcCallStats(monthCalls);
@@ -154,13 +141,13 @@ function populateMonthFilter(responses, calls) {
     const m = callMonth(c);
     if (m) monthSet.add(m);
   });
-  const months = [...monthSet].sort().reverse();
+  const months = sortMonthKeys(monthSet).reverse();
 
   select.innerHTML = '<option value="all">Все месяцы обзвона</option>';
   months.forEach((m) => {
     const opt = document.createElement("option");
     opt.value = m;
-    opt.textContent = formatSurveyMonth(m);
+    opt.textContent = monthLabel(m);
     select.appendChild(opt);
   });
 }
@@ -191,18 +178,13 @@ function updateKpis(responses) {
 }
 
 function buildMonthlyNps(allResponses, monthFilter) {
-  const months = [...new Set(allResponses.map((r) => responseMonth(r)).filter(Boolean))].sort();
+  const months = sortMonthKeys(
+    [...new Set(allResponses.map((r) => responseMonth(r)).filter(Boolean))],
+  );
   const filteredMonths =
     monthFilter !== "all" ? months.filter((m) => m === monthFilter) : months;
 
-  const labels = filteredMonths.map((m) => {
-    const [y, mo] = m.split("-");
-    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString("ru-RU", {
-      month: "short",
-      year: "2-digit",
-    });
-  });
-
+  const labels = filteredMonths.map((m) => monthLabel(m));
   const values = filteredMonths.map((m) => {
     const monthResponses = allResponses.filter((r) => responseMonth(r) === m);
     return calcNps(monthResponses) ?? 0;
@@ -244,7 +226,6 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
   const monthly = buildMonthlyNps(allResponses, monthFilter);
   const dist = buildDistribution(responses);
   const callMonthly = buildMonthlyCallRate(calls, monthFilter);
-
   const ageSeries = buildAgeNpsSeries(responses);
 
   if (chartMonthly) chartMonthly.destroy();
@@ -256,19 +237,17 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
   const textColor = "#8b9cb3";
 
   chartMonthly = new Chart(document.getElementById("chart-nps-monthly"), {
-    type: "line",
+    type: "bar",
     data: {
       labels: monthly.labels,
       datasets: [
         {
           label: "NPS",
           data: monthly.values,
-          borderColor: "#3b82f6",
-          backgroundColor: "rgba(59, 130, 246, 0.12)",
-          fill: true,
-          tension: 0.35,
-          pointRadius: 5,
-          pointBackgroundColor: "#3b82f6",
+          backgroundColor: monthly.values.map((v) =>
+            v >= 0 ? "rgba(59, 130, 246, 0.8)" : "rgba(244, 63, 94, 0.75)",
+          ),
+          borderRadius: 6,
         },
       ],
     },
@@ -304,45 +283,6 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
     return "rgba(239, 68, 68, 0.75)";
   });
 
-  chartCallRate = new Chart(document.getElementById("chart-call-rate"), {
-    type: "bar",
-    data: {
-      labels: callMonthly.labels,
-      datasets: [
-        {
-          label: "% дозвона",
-          data: callMonthly.values,
-          backgroundColor: "rgba(167, 139, 250, 0.75)",
-          borderRadius: 6,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `${ctx.parsed.y}%`,
-          },
-        },
-      },
-      scales: {
-        y: {
-          min: 0,
-          max: 100,
-          ticks: { callback: (v) => v + "%", color: textColor },
-          grid: { color: gridColor },
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: textColor },
-        },
-      },
-    },
-  });
-
   chartAgeNps = new Chart(document.getElementById("chart-age-nps"), {
     type: "bar",
     data: {
@@ -350,13 +290,11 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
       datasets: [
         {
           label: "NPS",
-          data: ageSeries.map((x) => (x.nps === null ? 0 : x.nps)),
+          data: ageSeries.map((x) => (x.nps === null ? 0 : Math.max(0, x.nps))),
           backgroundColor: ageSeries.map((x) =>
             x.nps === null
               ? "rgba(139, 156, 179, 0.35)"
-              : x.nps >= 0
-                ? "rgba(16, 185, 129, 0.75)"
-                : "rgba(244, 63, 94, 0.75)",
+              : "rgba(16, 185, 129, 0.75)",
           ),
           borderRadius: 6,
         },
@@ -379,7 +317,7 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
       },
       scales: {
         y: {
-          min: -100,
+          min: 0,
           max: 100,
           grid: { color: gridColor },
           ticks: { color: textColor },
@@ -423,6 +361,45 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
       },
     },
   });
+
+  chartCallRate = new Chart(document.getElementById("chart-call-rate"), {
+    type: "bar",
+    data: {
+      labels: callMonthly.labels,
+      datasets: [
+        {
+          label: "% дозвона",
+          data: callMonthly.values,
+          backgroundColor: "rgba(167, 139, 250, 0.75)",
+          borderRadius: 6,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.parsed.y}%`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          min: 0,
+          max: 100,
+          ticks: { callback: (v) => v + "%", color: textColor },
+          grid: { color: gridColor },
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: textColor },
+        },
+      },
+    },
+  });
 }
 
 function renderTable(responses) {
@@ -440,7 +417,7 @@ function renderTable(responses) {
   empty.classList.add("hidden");
 
   const sorted = [...responses].sort((a, b) =>
-    (responseMonth(b) || "").localeCompare(responseMonth(a) || ""),
+    String(responseMonth(b) || "").localeCompare(String(responseMonth(a) || ""), "ru"),
   );
 
   sorted.forEach((r) => {
@@ -453,7 +430,7 @@ function renderTable(responses) {
     }
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${formatSurveyMonth(responseMonth(r))}</td>
+      <td>${escapeHtml(r.surveyMonthLabel || monthLabel(responseMonth(r)))}</td>
       <td>${r.registrationDate ? formatDate(r.registrationDate) : "—"}</td>
       <td>${ageLabel}</td>
       <td><span class="score-pill">${r.score}</span></td>
@@ -474,98 +451,46 @@ function render() {
   if (!rawData) return;
 
   const monthFilter = document.getElementById("filter-month").value;
-  const typeFilter = document.getElementById("filter-type").value;
-  const filtered = filterResponses(rawData.responses, monthFilter, typeFilter);
+  const reviewType = document.getElementById("review-filter-type").value;
+  const reviewScore = document.getElementById("review-filter-score").value;
+
+  const dashboardResponses = filterResponsesForDashboard(rawData.responses, monthFilter);
+  const tableResponses = filterResponsesForTable(
+    rawData.responses,
+    monthFilter,
+    reviewType,
+    reviewScore,
+  );
   const calls = rawData.calls || [];
 
-  updateCallKpis(calls, monthFilter);
-  updateKpis(filtered);
-  updateCharts(filtered, rawData.responses, calls, monthFilter);
-  renderTable(filtered);
+  updateKpis(dashboardResponses);
+  updateCharts(dashboardResponses, rawData.responses, calls, monthFilter);
+  renderTable(tableResponses);
+  updateCallKpis(calls, rawData.responses, monthFilter);
 }
 
 function injectDocs() {
-  document.getElementById("doc-local").innerHTML = `
-    <p>Дашборд нельзя открыть как обычный файл — браузер не загрузит <code>data.xlsx</code>. Нужен простой локальный сервер.</p>
-    <h3>Вариант 1 — двойной щелчок (Windows)</h3>
-    <p>В папке проекта запустите файл <code>start.bat</code> — откроется сервер на <a href="http://localhost:3000" target="_blank" rel="noopener">http://localhost:3000</a>.</p>
-    <h3>Вариант 2 — терминал в папке проекта</h3>
-    <pre>cd путь\\к\\nps-dashboard
-npx serve .</pre>
-    <p>Нужен Node.js (<a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>). В терминале появится адрес — откройте его в браузере (часто <code>http://localhost:3000</code>).</p>
-    <h3>Вариант 3 — npm</h3>
-    <pre>npm start</pre>
-    <p>То же самое, если в папке есть <code>package.json</code> со скриптом <code>start</code>.</p>
-    <h3>Вариант 4 — Python (если Node нет)</h3>
-    <pre>python -m http.server 3000</pre>
-    <p>Затем откройте <code>http://localhost:3000</code>.</p>
-  `;
-
   document.getElementById("doc-update").innerHTML = `
-    <p>Данные — один Excel-файл <code>data.xlsx</code> в корне проекта. JSON вручную редактировать не нужно.</p>
-    <h3>Колонки в Excel (первая строка — заголовки)</h3>
+    <p>Данные — файл <code>data.xlsx</code> в корне проекта.</p>
+    <h3>Колонки в Excel</h3>
     <ul>
-      <li><strong>Дозвон</strong> — статус: Дозвон, Не дозвон, Отказник, 3 гудка…</li>
-      <li><strong>Оценка</strong> — число 0–10</li>
-      <li><strong>Дата регистрации бизнеса</strong> — для возраста клиента</li>
-      <li><strong>Месяц обзвона</strong> — последний столбец в таблице</li>
-      <li><strong>Комментарий</strong> — без имён, email, телефонов</li>
-      <li><strong>N</strong> — номер строки (необязательно)</li>
+      <li><strong>Дозвон</strong>, <strong>Оценка</strong>, <strong>Дата регистрации бизнеса</strong>, <strong>Комментарий</strong></li>
+      <li><strong>Месяц обзвона</strong> — последний столбец (например: апр 26, май.26)</li>
     </ul>
-    <h3>Как обновить локально</h3>
+    <h3>Обновление на GitHub</h3>
     <ol>
-      <li>Сохраните Excel как <code>data.xlsx</code> в папку <code>nps-dashboard</code></li>
-      <li>Запустите <code>start.bat</code> и обновите страницу (Ctrl+F5)</li>
+      <li>Замените <code>data.xlsx</code> → <strong>Commit</strong></li>
+      <li>Обновите дашборд (Ctrl+F5)</li>
     </ol>
-    <h3>Как обновить на Vercel (через GitHub)</h3>
-    <ol>
-      <li>На GitHub откройте репозиторий → файл <code>data.xlsx</code></li>
-      <li>Нажмите <strong>⋯</strong> → <strong>Delete file</strong> (или <strong>Upload files</strong> и замените файл)</li>
-      <li>Загрузите новый <code>data.xlsx</code> → <strong>Commit changes</strong></li>
-      <li>Через 1–2 мин обновите дашборд (Ctrl+F5)</li>
-    </ol>
-    <p>Фильтр «Месяц обзвона» — по последнему столбцу. NPS по возрасту — от даты регистрации до сегодня.</p>
   `;
 
   document.getElementById("doc-deploy").innerHTML = `
-    <p>Самый простой способ — через сайты GitHub и Vercel, без терминала.</p>
-    <h3>Шаг 1. Загрузить файлы на GitHub</h3>
+    <p>Через <a href="https://github.com" target="_blank" rel="noopener">GitHub</a> + <a href="https://vercel.com" target="_blank" rel="noopener">Vercel</a>.</p>
     <ol>
-      <li>Зайдите на <a href="https://github.com" target="_blank" rel="noopener">github.com</a> и войдите (или зарегистрируйтесь).</li>
-      <li>Нажмите <strong>+</strong> → <strong>New repository</strong>.</li>
-      <li>Имя, например: <code>nps-dashboard</code>. Можно оставить репозиторий <strong>Public</strong>. Нажмите <strong>Create repository</strong>.</li>
-      <li>На странице репозитория: <strong>Add file</strong> → <strong>Upload files</strong>.</li>
-      <li>Перетащите файлы проекта, главное:
-        <code>index.html</code>, <code>styles.css</code>, <code>app.js</code>, <code>parse-workbook.js</code>, <code>data.xlsx</code>, <code>vercel.json</code>
-        (папку <code>src</code> и <code>data.json</code> не нужны).</li>
-      <li>Внизу нажмите <strong>Commit changes</strong>.</li>
+      <li>Загрузите файлы проекта на GitHub</li>
+      <li>Vercel → Import → Framework: <strong>Other</strong>, Build: пусто</li>
+      <li>Для обновления — замените <code>data.xlsx</code> на GitHub</li>
     </ol>
-    <h3>Шаг 2. Подключить Vercel</h3>
-    <ol>
-      <li>Зайдите на <a href="https://vercel.com" target="_blank" rel="noopener">vercel.com</a> → <strong>Sign Up</strong> → войдите через <strong>GitHub</strong>.</li>
-      <li><strong>Add New…</strong> → <strong>Project</strong> → выберите репозиторий <code>nps-dashboard</code> → <strong>Import</strong>.</li>
-      <li>На экране настроек:
-        <ul>
-          <li><strong>Framework Preset</strong> — <strong>Other</strong></li>
-          <li><strong>Build Command</strong> — удалите всё, оставьте пустым</li>
-          <li><strong>Output Directory</strong> — точка <code>.</code> или пусто</li>
-        </ul>
-      </li>
-      <li>Нажмите <strong>Deploy</strong>. Подождите 1–2 минуты.</li>
-      <li>Готово: Vercel покажет ссылку вида <code>https://ваш-проект.vercel.app</code> — это адрес дашборда.</li>
-    </ol>
-    <h3>Как обновить данные после деплоя</h3>
-    <ol>
-      <li>На GitHub замените файл <code>data.xlsx</code> на новый (Upload files → перетащить → Commit).</li>
-      <li>Обновите страницу дашборда (Ctrl+F5).</li>
-    </ol>
-    <h3>Если что-то не работает</h3>
-    <ul>
-      <li>На Vercel в проекте → <strong>Settings</strong> → <strong>General</strong> — Build Command должен быть пустым.</li>
-      <li>В репозитории в корне должны лежать <code>index.html</code> и <code>data.xlsx</code>, не в подпапке.</li>
-      <li>Файл должен называться именно <code>data.xlsx</code> (латиница, без пробелов).</li>
-      <li>Дашборд по ссылке Vercel открывается без пароля — не публикуйте ссылку, если она только для команды.</li>
-    </ul>
   `;
 }
 
@@ -591,6 +516,8 @@ function applyData(data) {
   rawData = data;
   rawData.responses = (rawData.responses || []).map((r) => normalizeLegacyItem({ ...r }));
   rawData.calls = (rawData.calls || []).map((c) => normalizeLegacyItem({ ...c }));
+  monthCatalog = buildMonthCatalog(rawData.responses, rawData.calls);
+
   const meta = rawData.meta || {};
   const updated = meta.updatedAt
     ? `Обновлено: ${meta.updatedAt}${meta.source ? " · " + meta.source : ""}`
@@ -615,10 +542,12 @@ async function loadData() {
 
 function setupFilters() {
   document.getElementById("filter-month").addEventListener("change", render);
-  document.getElementById("filter-type").addEventListener("change", render);
+  document.getElementById("review-filter-type").addEventListener("change", render);
+  document.getElementById("review-filter-score").addEventListener("change", render);
   document.getElementById("reset-filters").addEventListener("click", () => {
     document.getElementById("filter-month").value = "all";
-    document.getElementById("filter-type").value = "all";
+    document.getElementById("review-filter-type").value = "all";
+    document.getElementById("review-filter-score").value = "all";
     render();
   });
 }
