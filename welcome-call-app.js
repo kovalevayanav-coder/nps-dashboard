@@ -125,6 +125,11 @@ function isReached(status) {
   return normAnswer(status) === "дозвон";
 }
 
+/** Комментарии показываем только по строкам со статусом «Дозвон» */
+function onlyReachedRows(rows) {
+  return rows.filter((r) => isReached(r.callStatus));
+}
+
 function hasAnyRating(row) {
   return (
     isFilled(row.connectionRating) ||
@@ -466,7 +471,7 @@ function renderConnectionBlock(rows, isAll) {
     });
   }
 
-  const commentItems = rows
+  const commentItems = onlyReachedRows(rows)
     .filter((r) => hasMeaningfulComment(r.connectionComment))
     .map((r) => ({
       rowIndex: r.rowIndex,
@@ -658,7 +663,7 @@ function renderManagerBlock(rows, isAll) {
   }
 
   const scale = isNumeric ? detectManagerScale(numericRows.map((r) => r.score)) : null;
-  const commentItems = rows
+  const commentItems = onlyReachedRows(rows)
     .filter((r) => hasMeaningfulComment(r.managerComment) && (isFilled(r.managerRatingStr) || r.managerRating != null))
     .map((r) => {
       const score = parseManagerScore(r.managerRating);
@@ -808,7 +813,7 @@ function renderNpsBlock(rows, isAll) {
     });
   }
 
-  const commentItems = rows
+  const commentItems = onlyReachedRows(rows)
     .filter((r) => hasMeaningfulComment(r.npsComment))
     .map((r) => {
       const score = parseNpsScore(r.npsRating);
