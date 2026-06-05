@@ -87,6 +87,28 @@
       </article>
     </section>
 
+    <section class="panel summary-section">
+      <h2 class="section-title">Саммари по отзывам</h2>
+      <div class="summary-grid">
+        <article class="summary-card summary-negative">
+          <div class="summary-card-header">
+            <h3>Топ негативных</h3>
+            <span class="summary-card-hint">оценки 0–6</span>
+          </div>
+          <ul class="summary-list" id="summary-negative-list"></ul>
+          <p class="summary-empty hidden" id="summary-negative-empty">Нет негативных отзывов</p>
+        </article>
+        <article class="summary-card summary-positive">
+          <div class="summary-card-header">
+            <h3>Топ позитивных</h3>
+            <span class="summary-card-hint">оценки 9–10</span>
+          </div>
+          <ul class="summary-list" id="summary-positive-list"></ul>
+          <p class="summary-empty hidden" id="summary-positive-empty">Нет позитивных отзывов</p>
+        </article>
+      </div>
+    </section>
+
     <section class="panel reviews-panel">
       <div class="panel-header">
         <h2>Отзывы</h2>
@@ -172,7 +194,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="parse-workbook.js?v=5" onerror="document.getElementById('load-error-text').textContent='Не найден parse-workbook.js — загрузите его на GitHub';document.getElementById('load-error').classList.remove('hidden');"></script>
-  <script src="app.js?v=5"></script>
+  <script src="parse-workbook.js?v=6" onerror="document.getElementById('load-error-text').textContent='Не найден parse-workbook.js — загрузите его на GitHub';document.getElementById('load-error').classList.remove('hidden');"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

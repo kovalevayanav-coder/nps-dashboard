@@ -2,6 +2,7 @@ let rawData = null;
 let monthCatalog = new Map();
 let reviewsPage = 1;
 const REVIEWS_PAGE_SIZE = 20;
+const SUMMARY_TOP = 5;
 let chartMonthly = null;
 let chartDistribution = null;
 let chartCallRate = null;
@@ -412,6 +413,67 @@ function updateCharts(responses, allResponses, calls, monthFilter) {
   });
 }
 
+function hasMeaningfulComment(r) {
+  const c = String(r.comment ?? "").trim();
+  return c && c !== "—" && c !== "-";
+}
+
+function buildTopReviews(responses, kind) {
+  const pool = responses.filter((r) =>
+    kind === "positive" ? r.score >= 9 : r.score <= 6,
+  );
+  if (!pool.length) return [];
+
+  const withComment = pool.filter(hasMeaningfulComment);
+  const source = withComment.length ? withComment : pool;
+
+  const sorted = [...source].sort((a, b) => {
+    if (kind === "positive") {
+      if (b.score !== a.score) return b.score - a.score;
+    } else if (a.score !== b.score) {
+      return a.score - b.score;
+    }
+    return String(b.comment || "").length - String(a.comment || "").length;
+  });
+
+  return sorted.slice(0, SUMMARY_TOP);
+}
+
+function renderSummaryItem(r) {
+  const month = escapeHtml(r.surveyMonthLabel || monthLabel(responseMonth(r)));
+  const comment = escapeHtml(r.comment || "—");
+  return `
+    <li class="summary-item">
+      <div class="summary-item-meta">
+        <span class="score-pill score-pill-sm">${r.score}</span>
+        <span class="summary-item-month">${month}</span>
+      </div>
+      <p class="summary-item-text">${comment}</p>
+    </li>
+  `;
+}
+
+function renderReviewsSummary(responses) {
+  const negativeList = document.getElementById("summary-negative-list");
+  const positiveList = document.getElementById("summary-positive-list");
+  const negativeEmpty = document.getElementById("summary-negative-empty");
+  const positiveEmpty = document.getElementById("summary-positive-empty");
+  if (!negativeList || !positiveList) return;
+
+  const topNegative = buildTopReviews(responses, "negative");
+  const topPositive = buildTopReviews(responses, "positive");
+
+  negativeList.innerHTML = topNegative.map(renderSummaryItem).join("");
+  positiveList.innerHTML = topPositive.map(renderSummaryItem).join("");
+
+  if (negativeEmpty) {
+    negativeEmpty.classList.toggle("hidden", topNegative.length > 0);
+  }
+  if (positiveEmpty) {
+    positiveEmpty.classList.toggle("hidden", topPositive.length > 0);
+  }
+}
+
 function renderTable(responses) {
   const tbody = document.getElementById("reviews-tbody");
   const empty = document.getElementById("reviews-empty");
@@ -500,6 +562,7 @@ function render(resetReviewsPage = false) {
 
     updateKpis(dashboardResponses);
     updateCharts(dashboardResponses, rawData.responses || [], calls, monthFilter);
+    renderReviewsSummary(dashboardResponses);
     renderTable(tableResponses);
     updateCallKpis(calls, rawData.responses || [], monthFilter);
   } catch (err) {
