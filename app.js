@@ -469,39 +469,19 @@ function render() {
   updateCallKpis(calls, rawData.responses, monthFilter);
 }
 
-function injectDocs() {
-  document.getElementById("doc-update").innerHTML = `
-    <p>Данные — файл <code>data.xlsx</code> в корне проекта.</p>
-    <h3>Колонки в Excel</h3>
-    <ul>
-      <li><strong>Дозвон</strong>, <strong>Оценка</strong>, <strong>Дата регистрации бизнеса</strong>, <strong>Комментарий</strong></li>
-      <li><strong>Месяц обзвона</strong> — последний столбец (например: апр 26, май.26)</li>
-    </ul>
-    <h3>Обновление на GitHub</h3>
-    <ol>
-      <li>Замените <code>data.xlsx</code> → <strong>Commit</strong></li>
-      <li>Обновите дашборд (Ctrl+F5)</li>
-    </ol>
-  `;
-
-  document.getElementById("doc-deploy").innerHTML = `
-    <p>Через <a href="https://github.com" target="_blank" rel="noopener">GitHub</a> + <a href="https://vercel.com" target="_blank" rel="noopener">Vercel</a>.</p>
-    <ol>
-      <li>Загрузите файлы проекта на GitHub</li>
-      <li>Vercel → Import → Framework: <strong>Other</strong>, Build: пусто</li>
-      <li>Для обновления — замените <code>data.xlsx</code> на GitHub</li>
-    </ol>
-  `;
-}
-
 const DATA_XLSX = "data.xlsx";
 
 async function loadFromXlsx() {
-  const res = await fetch(DATA_XLSX + "?" + Date.now());
-  if (!res.ok) return null;
-  const buf = await res.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array", cellDates: true });
-  return parseNpsWorkbook(wb, DATA_XLSX);
+  try {
+    const res = await fetch(DATA_XLSX + "?" + Date.now());
+    if (!res.ok) return { data: null, error: null };
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array", cellDates: true });
+    return { data: parseNpsWorkbook(wb, DATA_XLSX), error: null };
+  } catch (err) {
+    console.warn("data.xlsx:", err);
+    return { data: null, error: err.message || String(err) };
+  }
 }
 
 async function loadFromJson() {
@@ -512,7 +492,22 @@ async function loadFromJson() {
   return data;
 }
 
+function setStatus(text, isError) {
+  const el = document.getElementById("data-updated");
+  if (el) {
+    el.textContent = text;
+    el.classList.toggle("status-error", !!isError);
+  }
+}
+
 function applyData(data) {
+  if (typeof parseNpsWorkbook !== "function" || typeof normalizeLegacyItem !== "function") {
+    throw new Error("Не загружен parse-workbook.js — проверьте файл на GitHub");
+  }
+  if (typeof Chart === "undefined") {
+    throw new Error("Не загрузилась библиотека графиков (Chart.js). Проверьте интернет");
+  }
+
   rawData = data;
   rawData.responses = (rawData.responses || []).map((r) => normalizeLegacyItem({ ...r }));
   rawData.calls = (rawData.calls || []).map((c) => normalizeLegacyItem({ ...c }));
@@ -522,38 +517,105 @@ function applyData(data) {
   const updated = meta.updatedAt
     ? `Обновлено: ${meta.updatedAt}${meta.source ? " · " + meta.source : ""}`
     : "Данные загружены";
-  document.getElementById("data-updated").textContent = updated;
+  setStatus(updated, false);
+  const errBox = document.getElementById("load-error");
+  if (errBox) errBox.classList.add("hidden");
   populateMonthFilter(rawData.responses, rawData.calls);
   render();
 }
 
 async function loadData() {
+  setStatus("Загрузка данных…", false);
+  let xlsxError = null;
+
   try {
-    let data = await loadFromXlsx();
-    if (!data) data = await loadFromJson();
-    if (!data) throw new Error("no data");
-    applyData(data);
+    const xlsxResult = await loadFromXlsx();
+    if (xlsxResult?.data) {
+      applyData(xlsxResult.data);
+      return;
+    }
+    xlsxError = xlsxResult?.error;
+
+    const jsonData = await loadFromJson();
+    if (jsonData) {
+      applyData(jsonData);
+      return;
+    }
+
+    const errBox = document.getElementById("load-error");
+    const errText = document.getElementById("load-error-text");
+    if (errText) {
+      errText.textContent = xlsxError
+        ? `Ошибка в data.xlsx: ${xlsxError}. Загрузите исправленный Excel на GitHub.`
+        : "Файл data.xlsx не найден на сайте. Загрузите data.xlsx в репозиторий на GitHub.";
+    }
+    if (errBox) errBox.classList.remove("hidden");
+    setStatus("Не удалось загрузить данные", true);
   } catch (err) {
     console.error(err);
-    document.getElementById("app").classList.add("hidden");
-    document.getElementById("load-error").classList.remove("hidden");
+    const errBox = document.getElementById("load-error");
+    const errText = document.getElementById("load-error-text");
+    if (errText) errText.textContent = err.message || String(err);
+    if (errBox) errBox.classList.remove("hidden");
+    setStatus("Ошибка: " + (err.message || "неизвестная"), true);
   }
 }
 
 function setupFilters() {
-  document.getElementById("filter-month").addEventListener("change", render);
-  document.getElementById("review-filter-type").addEventListener("change", render);
-  document.getElementById("review-filter-score").addEventListener("change", render);
-  document.getElementById("reset-filters").addEventListener("click", () => {
-    document.getElementById("filter-month").value = "all";
-    document.getElementById("review-filter-type").value = "all";
-    document.getElementById("review-filter-score").value = "all";
-    render();
-  });
+  const bind = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", fn);
+  };
+  bind("filter-month", render);
+  bind("review-filter-type", render);
+  bind("review-filter-score", render);
+
+  const reset = document.getElementById("reset-filters");
+  if (reset) {
+    reset.addEventListener("click", () => {
+      const m = document.getElementById("filter-month");
+      const t = document.getElementById("review-filter-type");
+      const s = document.getElementById("review-filter-score");
+      if (m) m.value = "all";
+      if (t) t.value = "all";
+      if (s) s.value = "all";
+      render();
+    });
+  }
+}
+
+function injectDocs() {
+  const update = document.getElementById("doc-update");
+  const deploy = document.getElementById("doc-deploy");
+  if (!update || !deploy) return;
+
+  update.innerHTML = `
+    <p>Данные — файл <code>data.xlsx</code> в корне проекта на GitHub.</p>
+    <h3>Колонки в Excel</h3>
+    <ul>
+      <li><strong>Дозвон</strong>, <strong>Оценка</strong>, <strong>Дата регистрации бизнеса</strong>, <strong>Комментарий</strong></li>
+      <li><strong>Месяц обзвона</strong> — последний столбец</li>
+    </ul>
+    <h3>Обновление</h3>
+    <ol>
+      <li>GitHub → замените <code>data.xlsx</code> → Commit</li>
+      <li>Ctrl+F5 на дашборде</li>
+    </ol>
+  `;
+
+  deploy.innerHTML = `
+    <p>На GitHub должны быть: <code>index.html</code>, <code>app.js</code>, <code>parse-workbook.js</code>, <code>styles.css</code>, <code>data.xlsx</code>, <code>vercel.json</code></p>
+    <p>Vercel: Framework <strong>Other</strong>, Build Command пустой.</p>
+  `;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  setupFilters();
-  injectDocs();
-  loadData();
+  try {
+    setupFilters();
+    injectDocs();
+    loadData();
+  } catch (err) {
+    console.error(err);
+    setStatus("Ошибка запуска: " + err.message, true);
+  }
 });

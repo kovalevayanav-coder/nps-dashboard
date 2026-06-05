@@ -11,6 +11,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <div id="load-error" class="load-error-banner hidden">
+    <p id="load-error-text">Не удалось загрузить данные.</p>
+  </div>
   <div id="app" class="app">
     <header class="header">
       <div class="header-left">
@@ -174,13 +177,8 @@
     </footer>
   </div>
 
-  <div id="load-error" class="load-error hidden">
-    <p>Не удалось загрузить <code>data.xlsx</code>.</p>
-    <p>Положите Excel-файл в папку проекта как <code>data.xlsx</code>.</p>
-  </div>
-
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="parse-workbook.js"></script>
+  <script src="parse-workbook.js" onerror="document.getElementById('load-error-text').textContent='Не найден parse-workbook.js — загрузите его на GitHub';document.getElementById('load-error').classList.remove('hidden');"></script>
   <script src="app.js"></script>
 </body>
 </html>
